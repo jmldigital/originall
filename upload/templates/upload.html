@@ -1,0 +1,90 @@
+{% block content %}
+
+  <!--<form action="{% url 'upload' %}" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" multiple name="image_file">
+    <label for="msg">Добавить файлы</label>
+  
+    <button type="Submit" class="w-full bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white"> Добавить</button>
+    <input type="submit" value="submit" />
+  </form> 
+
+  {% if image_url %}
+    <p>File uploaded at: <a href="{{ image_url }}">{{ image_url }}</a></p>
+    <p>файлы:{{ arr }}</p>
+    
+  {% endif %}-->
+
+
+  <form method="post" >
+    {%csrf_token%}
+    
+    {{ form_words }}
+  
+    <button type="Submit" class="w-full bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white"> Обновить слова</button>
+  </form>
+
+
+
+  <div class="w-full mb-6 py-6  justify-between items-center  border-gray-200">
+    <table id="example" class="table table-striped display nowrap " style="width:100%;">
+        <thead>
+            <tr>
+            
+                <th>файлы</th>
+                <th>номер</th>
+                <th>бренд</th>
+                <th>название</th>
+                <th>вес</th>
+                <th>объем</th>
+
+
+            </tr>
+        </thead>
+        <tbody>
+            {% for file in files %}
+            <tr>
+                
+                <td class="text-center"> {{ file.files }} </td>
+                <td class="text-center"> {{ file.oem_field }} </td>
+                <td class="text-center"> {{ file.brend_field }} </td>                
+                <td class="text-center"> {{ file.name_field }} </td>
+                <td class="text-center"> {{ file.weight_field }} </td>
+                <td class="text-center"> {{ file.volume_field }} </td>
+               
+                <td class="text-center">
+                    
+                    <a href="{% url 'delete_view' file.id %}" class="text-indigo-600 hover:text-indigo-900 pb-5">  
+                    
+                      
+                        <span class="pb-5 mb-5 flex-inline text-blue-500 hover:text-blue-800">Удалить</span> 
+                    
+                    </a>
+                </td>
+
+            </tr>
+        {% endfor %}
+
+        </tbody>
+        <tfoot>
+            <tr>
+                <th>Всего {{ len }}</th><th> </th><th> </th><th> </th><th> </th><th> </th><th> </th>
+                        </tr>
+                        
+        </tfoot>
+    </table>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+  {%csrf_token%}
+  
+  
+  {{ form_files.words }}  {{ form_files.files}}
+
+
+   <input type="submit" value="Submit">
+</form>
+
+<div> {{ frame| safe }}</div>
+
+{% endblock content%}
