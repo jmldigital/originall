@@ -17,60 +17,93 @@ $(document).ready(function() {
 
 {% block content %}
 {% load tailwind_filters %}
-  <!--<form action="{% url 'upload' %}" method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="file" multiple name="image_file">
-    <label for="msg">Добавить файлы</label>
-  
-    <button type="Submit" class="w-full bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white"> Добавить</button>
-    <input type="submit" value="submit" />
-  </form> 
-
-  {% if image_url %}
-    <p>File uploaded at: <a href="{{ image_url }}">{{ image_url }}</a></p>
-    <p>файлы:{{ arr }}</p>
-    
-  {% endif %}-->
 
 <body>
-  <div class="max-w-7xl mx-auto">
-  <div class="max-w-xl mb-6 py-6  justify-between items-left  border-gray-200">
-    <table id="example" class="table table-striped display nowrap " style="width:100%;">
-        <thead>
-            <tr>
-                <th>стоп слова</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for word in words %}
-            <tr>
-                <td class="text-center"> {{ word.words }} </td>
-                <td class="text-center">
-                    <a href="{% url 'delete-words' word.pk %}" class="text-indigo-600 hover:text-indigo-900 pb-5">  
-                        <span class="pb-5 mb-5 flex-inline text-blue-500 hover:text-blue-800">Удалить</span> 
-                    </a>
-                </td>
-            </tr>
-        {% endfor %}
 
-        </tbody>
-        <tfoot>
-            <tr>
-                <th>Всего {{ len }}</th><th> </th>
-            </tr>       
-        </tfoot>
-    </table>
-    <form method="post" >
-      {%csrf_token%}
-      
-      {{ form_words|crispy }}
+
+<div class="container px-5 py-24 mx-auto flex flex-wrap">
+  <div class="w-full flex justify-between">
+
+
+       <!---- стоп слова -->
+        <div class="lg:w-1/4 mb-6 py-6  justify-between items-left  border-gray-200">
+          <table id="example" class="table table-striped display nowrap " style="width:100%;">
+              <thead>
+                  <tr>
+                      <th>стоп слова</th>
+                      <th></th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% for word in words %}
+                  <tr>
+                      <td class="text-center"> {{ word.words }} </td>
+                      <td class="text-center">
+                          <a href="{% url 'delete-words' word.pk %}" class="text-indigo-600 hover:text-indigo-900 pb-5">  
+                              <span class="pb-5 mb-5 flex-inline text-blue-500 hover:text-blue-800">Удалить</span> 
+                          </a>
+                      </td>
+                  </tr>
+              {% endfor %}
+
+              </tbody>
+              <tfoot>
+                  <tr>
+                      <th>Всего {{ len }}</th><th> </th>
+                  </tr>       
+              </tfoot>
+          </table>
+                <form method="post" >
+                  {%csrf_token%}
+                  
+                  {{ form_words|crispy }}
+                
+                  <button type="Submit" class=" bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white" name="btnform1"> Добавить стоп слово</button>
+                </form>
+      </div>
+      <!---- конец стоп слов -->
+
+             <!---- бренды -->
+             <div class="lg:w-1/3 mb-6 py-6  justify-between items-left  border-gray-200">
+              <table id="example" class="table table-striped display nowrap " style="width:50%;">
+                  <thead>
+                      <tr>
+                          <th>бренды</th>
+                          <th></th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {% for brand in brands %}
+                      <tr>
+                          <td class="text-center"> {{ brand.brand }} </td>
+                          <td class="text-center">
+                              <a href="{% url 'brands-delete' brand.pk %}" class="text-indigo-600 hover:text-indigo-900 pb-5">  
+                                  <span class="pb-5 mb-5 flex-inline text-blue-500 hover:text-blue-800">Удалить</span> 
+                              </a>
+                          </td>
+                      </tr>
+                  {% endfor %}
     
-      <button type="Submit" class=" bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white" name="btnform1"> Добавить слово</button>
-    </form>
-</div>
+                  </tbody>
+                  <tfoot>
+                      <tr>
+                          <th>Всего {{ len }}</th><th> </th>
+                      </tr>       
+                  </tfoot>
+              </table>
+                    <form method="post" >
+                      {%csrf_token%}
+                      
+                      {{ form_brands.brand|as_crispy_field }}
+                    
+                      <button type="Submit" class=" bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white" name="btnform3"> Добавить бренд</button>
+                    </form>
+          </div>
+          <!---- конец брендов -->
 
-<!---- конец стоп слов -->
+
+    </div>
+
 
 
 
@@ -135,5 +168,5 @@ $(document).ready(function() {
 <div> {{ frame| safe }}</div>
 
 {% endblock content%}
-</div> 
+</div> </div> 
 </body>

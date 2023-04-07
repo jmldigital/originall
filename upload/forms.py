@@ -1,5 +1,5 @@
 from django import forms
-from .models import StopWords,AddFiles
+from .models import StopWords,AddFiles,Brands
 from django.forms import ModelForm
 
 
@@ -8,6 +8,12 @@ class StopWordsForm(ModelForm):
     class Meta:
         model = StopWords
         fields = '__all__'   
+
+
+class BrandsForm(ModelForm):
+    class Meta:
+        model = Brands
+        fields = '__all__'  
            
 
 class FilesForm(ModelForm):

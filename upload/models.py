@@ -16,3 +16,8 @@ class AddFiles(models.Model):
 
 def __str__(self):
     return self.files
+
+class Brands(models.Model):
+    brand_id = models.AutoField(primary_key=True)
+    brand = models.CharField(max_length=40, verbose_name='бренды',blank=True,null=True)
+    files = models.FileField(upload_to='',null=True,blank=True)
