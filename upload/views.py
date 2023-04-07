@@ -36,7 +36,168 @@ def file_delete(request, id=None):
     file.delete()
     return redirect("/")  
 
-    # return render(request, "upload.html")
+def words_delete(request, id=None):   
+    words = StopWords.objects.get(id=id)
+    words.delete()
+    return redirect("/")  
+
+
+
+  
+
+def image_upload(request):
+    context ={}
+    arr=[]
+    tit={}
+    frame=''
+    html_str = ''
+    r=[]
+
+
+    form_files = FilesForm(request.POST,request.FILES)
+    form_words = StopWordsForm(request.POST)
+    words = StopWords.objects.all()
+
+
+
+    # if request.method == "POST":
+    #     if (form_words.is_valid()) or (form_files.is_valid()):
+    #         print('все ок')
+    #         form_files = FilesForm(request.POST or None, request.FILES)
+    #         form_files.save() 
+    #         form_words = StopWordsForm(request.POST or None)
+    #         form_words.save()
+    #     else:
+    #         print('плохо')
+    #         return redirect("/")  
+
+
+    if request.method == "POST" and 'btnform2' in request.POST:
+        if form_files.is_valid():
+            file = form_files.cleaned_data['files']
+            print(file)
+            form_files = FilesForm(request.POST or None, request.FILES)
+            form_files.save() 
+            file = form_files.cleaned_data['files']
+            files_str = form_files.cleaned_data['files'].name
+            extension = files_str.split(".")[1]
+            if extension == 'xls':
+                anime = pd.read_excel(file)
+                for title in anime.columns.tolist():
+                    for key in fields.keys():
+                        if any(ext in title.lower() for ext in fields[key]):
+                            arr.append(title)
+                            tit[key]=title
+
+            anime_cleare = anime[arr] 
+            for key in fields.keys():  
+                if key in tit.keys():
+                    print('')
+                else:
+                    tit[key] = '------------'   
+
+            # print(tit)
+            # print(tit["brend_field"])
+            
+            AddFiles.objects.create(
+            files=file,
+            oem_field=tit['oem_field'],
+            brend_field=tit['brend_field'],
+            name_field=tit['name_field'],
+            weight_field=tit['weight_field'],
+            volume_field=tit['volume_field'],
+
+            )
+
+        else:
+            print('все плохо') 
+            return redirect("/")  
+        
+
+
+            
+
+    if request.method == "POST" and 'btnform1' in request.POST:
+        print('слова записываются')
+        form_words = StopWordsForm(request.POST or None)
+        StopWords.objects.create(words = request.POST['words'])
+        form_words.save(commit=False)
+        return redirect("/")   
+        
+
+#------------------------Добавляем фйлы-------------------------------------------
+    # if request.method == "POST":
+    #     form_files = FilesForm(request.POST or None, request.FILES)
+    #     # words = StopWords.objects.get(id=1)
+    #     if form_files.is_valid():
+    #         print('все ок')
+    #         form_files.save()
+    #     else:
+    #         print('все плохо')  
+
+            # words.words = words
+            # words.save()
+
+            # file = form_files.cleaned_data['files']
+            # files_str = form_files.cleaned_data['files'].name
+            # extension = files_str.split(".")[1]
+            # if extension == 'xls':
+            #     anime = pd.read_excel(file)
+            #     for title in anime.columns.tolist():
+            #         for key in fields.keys():
+            #             if any(ext in title.lower() for ext in fields[key]):
+            #                 arr.append(title)
+            #                 tit[key]=title
+
+            # anime_cleare = anime[arr] 
+            # for key in fields.keys():  
+            #     if key in tit.keys():
+            #         print('')
+            #     else:
+            #         tit[key] = 'ничего'   
+
+            # # print(tit)
+            # # print(tit["brend_field"])
+            
+            # AddFiles.objects.create(
+            # files=file,
+            # oem_field=tit['oem_field'],
+            # brend_field=tit['brend_field'],
+            # name_field=tit['name_field'],
+            # weight_field=tit['weight_field'],
+            # volume_field=tit['volume_field'],
+
+            # )
+           
+            # frame = anime_cleare.to_html('upload/templates/filename.html')
+            # frame = anime_cleare.to_html()
+            # r.append(frame)
+
+            # ff=render(request, frame)
+            # print(HttpResponse(frame))
+  
+            # print(frame)
+            # HttpResponse(frame, headers={'Content-Type': 'text/html'})
+            # form_files.save()
+            # return redirect("/")  
+
+
+    # mytextfield = "".join(frame.split())
+    # print('nen',frame)
+    context = {
+        'files':AddFiles.objects.all(),
+        'form_words': form_words,
+        'form_files': form_files,
+        'frame':frame,
+        'words':words 
+      
+    }
+
+    
+        
+    return render(request, "upload.html", context)
+
+
 
 
 
@@ -71,108 +232,6 @@ def Words_update(request, pk):
         "form": form3
     }
 
-    return render(request, "upload.html", context)
-  
-
-
-
-
-def image_upload(request):
-    context ={}
-    arr=[]
-    tit={}
-    frame=''
-    html_str = ''
-    r=[]
-
- 
-
-
-    form_files = FilesForm(prefix='name2')
-    obj=StopWords.objects.get(id=1)
-  
-    # print('before',type(obj.words))
-    words = obj.words
-    form_words = StopWordsForm(instance=obj)
-
-
-    if request.method == "POST":
-        form_words = StopWordsForm(request.POST or None, instance=obj)
-   
-        if form_words.is_valid():
-            form_words.save()
-            return redirect("/")  
-        
-
-#------------------------Добавляем фйлы-------------------------------------------
-    if request.method == "POST":
-        form_files = FilesForm(request.POST or None, request.FILES,prefix='name2')
-        words = StopWords.objects.get(id=1)
-        if form_files.is_valid():
-
-            words.words = words
-            # words.save()
-            form_files.save(commit=False)
-            file = form_files.cleaned_data['files']
-            files_str = form_files.cleaned_data['files'].name
-            extension = files_str.split(".")[1]
-            if extension == 'xls':
-                anime = pd.read_excel(file)
-                for title in anime.columns.tolist():
-                    for key in fields.keys():
-                        if any(ext in title.lower() for ext in fields[key]):
-                            arr.append(title)
-                            tit[key]=title
-
-            anime_cleare = anime[arr] 
-            for key in fields.keys():  
-                if key in tit.keys():
-                    print('')
-                else:
-                    tit[key] = 'ничего'   
-
-            # print(tit)
-            # print(tit["brend_field"])
-            
-            AddFiles.objects.create(
-            files=file,
-            oem_field=tit['oem_field'],
-            brend_field=tit['brend_field'],
-            name_field=tit['name_field'],
-            weight_field=tit['weight_field'],
-            volume_field=tit['volume_field'],
-
-            )
-           
-            # frame = anime_cleare.to_html('upload/templates/filename.html')
-            frame = anime_cleare.to_html()
-            # r.append(frame)
-
-            # ff=render(request, frame)
-            # print(HttpResponse(frame))
-  
-            # print(frame)
-
-            
-
-
-            # HttpResponse(frame, headers={'Content-Type': 'text/html'})
-            # form_files.save()
-            return redirect("/")  
-
-
-    # mytextfield = "".join(frame.split())
-    print('nen',frame)
-    context = {
-        'files':AddFiles.objects.all(),
-        'form_words': form_words,
-        'form_files': form_files,
-        'frame':frame 
-      
-    }
-
-    
-        
     return render(request, "upload.html", context)
 
 
