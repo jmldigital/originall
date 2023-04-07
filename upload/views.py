@@ -92,7 +92,7 @@ def image_upload(request):
     if request.method == "POST" and 'btnform2' in request.POST:
         if form_files.is_valid():
             file = form_files.cleaned_data['files']
-            print(file)
+            # print(file)
             form_files = FilesForm(request.POST or None, request.FILES)
             form_files.save(commit=False) 
             file = form_files.cleaned_data['files']
@@ -127,12 +127,12 @@ def image_upload(request):
             )
 
         else:
-            print('все плохо') 
+            # print('все плохо') 
             return redirect("/")  
                 
 
     if request.method == "POST" and 'btnform1' in request.POST:
-        print('слова записываются')
+        # print('слова записываются')
         form_words = StopWordsForm(request.POST or None)
         StopWords.objects.create(words = request.POST['words'])
         form_words.save(commit=False)
@@ -140,9 +140,16 @@ def image_upload(request):
         
 
     if request.method == "POST" and 'btnform3' in request.POST:
-        print('бренды записываются')
         form_brands = BrandsForm(request.POST or None)
-        Brands.objects.create(brand = request.POST['brand'])
+
+        # brand_l = list(Brands.objects.values_list("brand_id", flat=True).order_by("brand_id"))
+        brand_last = list(Brands.objects.values_list("brand_id", flat=True).order_by("brand_id"))[- 1] + 1
+
+        Brands.objects.create(
+            
+            brand = request.POST['brand'],
+            brand_id = brand_last
+        )
         form_brands.save(commit=False)
         return redirect("/")  
 
@@ -216,7 +223,7 @@ def image_upload(request):
       
     }
 
-    print(context['brands'])
+    # print(context['brands'])
 
     
         
