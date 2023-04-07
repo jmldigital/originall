@@ -1,4 +1,17 @@
+<head>
+  <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.css" />
+  <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.js"></script>
+  
+  </head>
+
+
+  <body>
+    <div class="max-w-2xl mb-6 py-20 mx-auto">
+
 {% block content %}
+{% load tailwind_filters %}
 
 
 
@@ -6,8 +19,10 @@
 
     <form method="POST" enctype="multipart/form-data">
     {%csrf_token%}
-    {{form.as_p}}
-    <button type="submit">Загрузка</button>
+    {{form|crispy}}
+    <button type="Submit" class=" bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white" > Загрузка</button>
   </form>
 
 {% endblock %}
+</div>
+</body>
