@@ -15,9 +15,9 @@ class FilesForm(ModelForm):
         model = AddFiles
         fields = '__all__'   
 
-    def __init__(self, *args, **kwargs):  
-        super(FilesForm, self).__init__(*args, **kwargs)
-        self.fields['words'].empty_label = None
+    # def __init__(self, *args, **kwargs):  
+    #     super(FilesForm, self).__init__(*args, **kwargs)
+    #     self.fields['words'].empty_label = None
         
 
 
