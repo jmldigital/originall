@@ -162,21 +162,16 @@ def bd_create(request):
         anime_filter_words = anime_filter[~anime_filter['name_field'].isin(words_up)] 
         anime_filter_words.to_csv('df.csv', index = None)
 
-        anime_filter_words.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, index=True, index_label='id')
-        # print(anime_filter_words)
 
-   
-    # OriginallBD.objects.create(
-    # oem_field='oem_test',
-    # brend_field='brend_test',
-    # name_field='name_test',
-    # weight_field='weight_test',
-    # volume_field='volume_test',
-    # )
+        anime_filter_words.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, index=True, index_label='id')
+
+
+
 
 
     context ={'BD':BD}
-    return redirect(request.META['HTTP_REFERER'])
+    # return redirect(request.META['HTTP_REFERER'])
+    return render(request, "bd.html", context)
 
 
 
