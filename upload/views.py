@@ -6,11 +6,12 @@ import os.path
 from mechanize import Browser
 import cgi
 from .forms import StopWordsForm, FilesForm,BrandsForm,FileFieldForm
-from .models import StopWords,AddFiles,Brands
+from .models import StopWords,AddFiles,Brands,OriginallBD
 from django.views import generic
 from django.shortcuts import render, redirect, reverse
 from django.http import HttpResponse
 from sqlalchemy import create_engine
+import re
 
 
 
@@ -31,6 +32,76 @@ fields = {
 'volume_field':['volume','band','umfang','lautstärke','volumen','объем'] }
 
 
+engine = create_engine('sqlite:///db.sqlite3')
+
+
+def cleaner(string):
+    reg = re.compile('[^a-zA-Z ]')
+    return reg.sub('', string)
+
+def delimetr(file):
+    
+    if type(file) == str:
+        # print('загружаем из бд',file)
+        file_path = file
+        file= open(file_path, 'r', errors='ignore')
+        first_line = file.readline()
+        # first = file.readline()
+        # first_line = first.decode('utf-8')
+        # file.seek(0)
+
+    else:
+        # print("загружаем из формы",file)
+        first = file.readline()
+        first_line = first.decode('utf-8')
+        file.seek(0)
+
+    match = re.search(r'(\W+)', first_line)
+    if match.group(0) =='\t':
+        delim = '\t'
+        # print("разделитель таб",delim)
+    else:
+        delim =match.group(0)
+        # print("разделитель:",delim) 
+        # file.seek(0)
+    return delim
+
+def converter(file):
+
+    try:
+        extension = file.split(".")[1]
+    except:
+        extension = cleaner(os.path.splitext(file.name)[1])
+
+    df = ''
+    # print(extension)
+
+    if extension == 'csv':
+        df = pd.read_csv(file, on_bad_lines='skip',header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
+        # print('dfdfdf')
+        # for title in df.columns.tolist():
+            # df.rename(columns = {title:cleaner(title)}, inplace = True )
+    if extension == 'xls':
+        df = pd.read_excel(file)
+        for title in df.columns.tolist():
+            df.rename(columns = {title:cleaner(title)}, inplace = True )
+    if extension == 'xlsx':
+        df =pd.read_excel(file, engine='openpyxl')
+        for title in df.columns.tolist():
+            df.rename(columns = {title:cleaner(title)}, inplace = True )
+    if extension == 'txt':
+        # df = pd.read_csv(file, encoding = "ANSI", on_bad_lines='skip', header=0, delim_whitespace=True,engine='python')sep='\s+'
+        print('разделитьель-',delimetr(file))
+        # df = pd.read_csv(file, on_bad_lines='skip', header=0, sep=delimetr(file))
+        df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
+        # df.to_csv('df.csv', index = None)
+
+        # for title in df.columns.tolist():
+        #     df.rename(columns = {title:cleaner(title)}, inplace = True )
+
+    return df   
+
+
 
 def file_delete(request, id=None):   
     file = AddFiles.objects.get(id=id)
@@ -48,9 +119,72 @@ def brands_delete(request, id=None):
     return redirect("/")  
 
 
+def bd_create(request):   
+    BD = OriginallBD.objects.all()
+    words = StopWords.objects.values_list('words', flat=True).distinct()
+    words_up=list(map(str.upper, words))
+    brands = Brands.objects.values_list('brand', flat=True).distinct()
+    brands_low = list(map(str.lower, brands))
+    files = AddFiles.objects.all()
+
+
+    prices=AddFiles.objects.values_list('files', flat=True).distinct()
+    for price in prices:
+
+        arr={}
+        # anime = pd.read_excel('mediafiles/'+price)
+  
+        # anime = pd.read_csv('mediafiles/'+price, on_bad_lines='skip')
+        anime = converter("mediafiles/"+price)            
+        for title in anime.columns.tolist():
+
+            for key in fields.keys():
+                if any(ext in title.lower() for ext in fields[key]):
+                    arr[title] = key
+
+        anime.rename(columns = arr, inplace = True )
+        anime_cleare = anime[list(arr.values())]
+
+        anime_pure = anime_cleare[(anime['weight_field'] > 0) & (anime['volume_field'] > 0) & (anime['volume_field'] > anime['weight_field'])]
+        anime_pure = anime_pure[(anime_pure['brend_field'] != None) & (anime_pure['name_field'] != None) ]
+        # anime_pure_l = anime_pure.replace(to_replace='brend_field', value=brands_low)
+
+        # selecting old value
+        b = anime_pure['brend_field']
+        anime_pure['brend_field'] = anime_pure['brend_field'].str.lower()
+        anime_pure['name_field'] = anime_pure['name_field'].str.upper()
+
+        # anime_pure.to_csv('df.csv', index = None)
+
+           
+        # selecting rows based on condition 
+        anime_filter = anime_pure[anime_pure['brend_field'].isin(brands_low)] 
+        anime_filter_words = anime_filter[~anime_filter['name_field'].isin(words_up)] 
+        anime_filter_words.to_csv('df.csv', index = None)
+
+        anime_filter_words.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, index=True, index_label='id')
+        # print(anime_filter_words)
+
+   
+    # OriginallBD.objects.create(
+    # oem_field='oem_test',
+    # brend_field='brend_test',
+    # name_field='name_test',
+    # weight_field='weight_test',
+    # volume_field='volume_test',
+    # )
+
+
+    context ={'BD':BD}
+    return redirect(request.META['HTTP_REFERER'])
+
+
+
+
+
 def brands_create(request):
     form = BrandsForm(request.POST, request.FILES)
-    engine = create_engine('sqlite:///db.sqlite3')
+
 
     if request.method == "POST":
         if form.is_valid():
@@ -86,6 +220,7 @@ def image_upload(request):
     form_brands = BrandsForm(request.POST or None)
     words = StopWords.objects.all()
     brands = Brands.objects.all()
+    BD = OriginallBD.objects.all()
     # print('sdfsdfdf',brands)
 
 
@@ -97,16 +232,18 @@ def image_upload(request):
             form_files.save(commit=False) 
             file = form_files.cleaned_data['files']
             files_str = form_files.cleaned_data['files'].name
-            extension = files_str.split(".")[1]
-            if extension == 'xls':
-                anime = pd.read_excel(file)
-                for title in anime.columns.tolist():
-                    for key in fields.keys():
-                        if any(ext in title.lower() for ext in fields[key]):
-                            arr.append(title)
-                            tit[key]=title
+            # print('what is thet:',type(file))
 
-            anime_cleare = anime[arr] 
+            anime = converter(file)
+
+            for title in anime.columns.tolist():
+                # print(title)
+                for key in fields.keys():
+                    if any(ext in title.lower() for ext in fields[key]):
+                        arr.append(title)
+                        tit[key]=title
+
+            # anime_cleare = anime[arr] 
             for key in fields.keys():  
                 if key in tit.keys():
                     print('')
@@ -125,6 +262,7 @@ def image_upload(request):
             volume_field=tit['volume_field'],
 
             )
+
 
         else:
             # print('все плохо') 
@@ -219,7 +357,8 @@ def image_upload(request):
         'form_brands': form_brands,
         'frame':frame,
         'words':words,
-        'brands':brands 
+        'brands':brands,
+        'BD':BD 
       
     }
 
