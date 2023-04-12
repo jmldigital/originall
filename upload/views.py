@@ -10,15 +10,15 @@ from .models import StopWords,AddFiles,Brands,OriginallBD
 from django.views import generic
 from django.shortcuts import render, redirect, reverse
 from django.http import HttpResponse
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, text
 import re
-
-
-
-
+from django.http import JsonResponse
+from django.core import serializers
 from django.views.generic.edit import FormView
-
 from .forms import FileFieldForm
+from pandas import read_sql_query
+# import pandasql
+# import pysqldf
 
 #python manage.py migrate --run-syncdb
 
@@ -30,6 +30,7 @@ fields = {
 # 'quantity':['volume','menge','quantity','кол-во','количество','min'],
 'weight_field':['weight','gewicht','вес','кг'],
 'volume_field':['volume','band','umfang','lautstärke','volumen','объем'] }
+
 
 
 engine = create_engine('sqlite:///db.sqlite3')
@@ -106,17 +107,24 @@ def converter(file):
 def file_delete(request, id=None):   
     file = AddFiles.objects.get(id=id)
     file.delete()
-    return redirect("/")  
+    return JsonResponse({'success': True, 'message': 'Delete','id':id}) 
 
 def words_delete(request, id=None):   
     words = StopWords.objects.get(pk=id)
     words.delete()
-    return redirect("/")  
+    return JsonResponse({'success': True, 'message': 'Delete','id':id})  
+
+# def words_asJson(request):
+#     object_list = StopWords.objects.all() #or any kind of queryset
+#     json = serializers.serialize('json', object_list)
+#     return HttpResponse(json, content_type='application/json')
+
+
 
 def brands_delete(request, id=None):   
-    brand = Brands.objects.get(brand_id=id)
+    brand = Brands.objects.get(id=id)
     brand.delete()
-    return redirect("/")  
+    return JsonResponse({'success': True, 'message': 'Delete','id':id})   
 
 
 def bd_create(request):   
@@ -166,9 +174,6 @@ def bd_create(request):
         anime_filter_words.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, index=True, index_label='id')
 
 
-
-
-
     context ={'BD':BD}
     # return redirect(request.META['HTTP_REFERER'])
     return render(request, "bd.html", context)
@@ -179,7 +184,20 @@ def bd_create(request):
 
 def brands_create(request):
     form = BrandsForm(request.POST, request.FILES)
+    brands = list(Brands.objects.values_list('brand', flat=True).distinct())
+    brands_old = pd.DataFrame(brands)
+   
 
+
+    
+    # engine2 = create_engine('sqlite:///college.db', echo = True)
+    # meta = MetaData()
+    # brendss = Table(
+    # 'brendss', meta, 
+    # Column('id', Integer, primary_key = True), 
+    # Column('brendок', String), 
+    # )
+    # meta.create_all(engine2)
 
     if request.method == "POST":
         if form.is_valid():
@@ -188,9 +206,23 @@ def brands_create(request):
             # form.save(commit=False)
             brendsdf = pd.read_excel(brends)
             brendsdf.columns=["brand"]
+
+            # anime_filter_words = anime_filter[~anime_filter['name_field'].isin(words_up)] 
+            # brends_dif = brendsdf[~brendsdf['brand'].isin(brands_old)] 
+
+            # brends_new = pd.concat([brands_old, brends_dif], ignore_index=False)
+
+            # print(brends_dif)
+
             brendsdf['files'] = None
-            brendsdf.to_sql(Brands._meta.db_table, if_exists='replace', con=engine, index=True, index_label='brand_id')
             # print(brendsdf)
+            # brendsdf.to_sql('brendss', if_exists='replace', index=True, index_label='id', con=engine2)
+            brendsdf.to_sql(Brands._meta.db_table, if_exists='append', index=True, index_label='id', con=engine)
+
+            # with engine.connect() as con:
+            #     con.execute('ALTER TABLE `Brands` ADD PRIMARY KEY (`ID`);')
+            # # print(brendsdf)
+
             return redirect("brands-create")
         else:
             print('все грязно')
@@ -219,35 +251,32 @@ def image_upload(request):
     # print('sdfsdfdf',brands)
 
 
-    if request.method == "POST" and 'btnform2' in request.POST:
+    # print(list(request.POST.keys()), 'ПРОСТОЙ ЗАПРОС')
+    
+    if request.method == "POST" and request.is_ajax and 'brend_field' in list(request.POST.keys()):
+        form_files = FilesForm(request.POST or None, request.FILES)
+        # print(list(request.POST.keys()), 'аякс прайсы')
         if form_files.is_valid():
             file = form_files.cleaned_data['files']
-            # print(file)
-            form_files = FilesForm(request.POST or None, request.FILES)
-            form_files.save(commit=False) 
-            file = form_files.cleaned_data['files']
             files_str = form_files.cleaned_data['files'].name
-            # print('what is thet:',type(file))
-
+            brend_field = form_files.cleaned_data['brend_field']
+            instance = form_files.save(commit=False)
+            print('dct jr',brend_field)
             anime = converter(file)
-
             for title in anime.columns.tolist():
-                # print(title)
                 for key in fields.keys():
                     if any(ext in title.lower() for ext in fields[key]):
                         arr.append(title)
                         tit[key]=title
 
-            # anime_cleare = anime[arr] 
             for key in fields.keys():  
                 if key in tit.keys():
                     print('')
                 else:
-                    tit[key] = '------------'   
-
-            # print(tit)
-            # print(tit["brend_field"])
-            
+                    if key == 'brend_field':
+                        tit[key] =  brend_field
+                    else:
+                        tit[key] = '-----------------' 
             AddFiles.objects.create(
             files=file,
             oem_field=tit['oem_field'],
@@ -255,36 +284,148 @@ def image_upload(request):
             name_field=tit['name_field'],
             weight_field=tit['weight_field'],
             volume_field=tit['volume_field'],
-
             )
 
 
+            ser_instance = serializers.serialize('json', [ instance, ])
+            # print('это сериализация прайсов',ser_instance)
+            return JsonResponse({"instance": ser_instance}, status=200)
         else:
-            # print('все плохо') 
-            return redirect("/")  
-                
+            print('форма не валидная',form_files.errors)
+            # some form errors occured.
+            return JsonResponse({"error": form_files.errors}, status=404)
+            # file = form_files.cleaned_data['files']
+            # print(file)
+            # form_files = FilesForm(request.POST or None, request.FILES)
+            # form_files.save(commit=False) 
+            # file = form_files.cleaned_data['files']
+            # files_str = form_files.cleaned_data['files'].name
+            # print('what is thet:',type(file))
 
-    if request.method == "POST" and 'btnform1' in request.POST:
-        # print('слова записываются')
-        form_words = StopWordsForm(request.POST or None)
-        StopWords.objects.create(words = request.POST['words'])
-        form_words.save(commit=False)
-        return redirect("/")   
-        
+        #     anime = converter(file)
 
-    if request.method == "POST" and 'btnform3' in request.POST:
-        form_brands = BrandsForm(request.POST or None)
+        #     for title in anime.columns.tolist():
+        #         # print(title)
+        #         for key in fields.keys():
+        #             if any(ext in title.lower() for ext in fields[key]):
+        #                 arr.append(title)
+        #                 tit[key]=title
 
-        # brand_l = list(Brands.objects.values_list("brand_id", flat=True).order_by("brand_id"))
-        brand_last = list(Brands.objects.values_list("brand_id", flat=True).order_by("brand_id"))[- 1] + 1
+        #     # anime_cleare = anime[arr] 
+        #     for key in fields.keys():  
+        #         if key in tit.keys():
+        #             print('')
+        #         else:
+        #             tit[key] = '------------'   
 
-        Brands.objects.create(
+        #     # print(tit)
+        #     # print(tit["brend_field"])
             
-            brand = request.POST['brand'],
-            brand_id = brand_last
-        )
-        form_brands.save(commit=False)
-        return redirect("/")  
+        #     AddFiles.objects.create(
+        #     files=file,
+        #     oem_field=tit['oem_field'],
+        #     brend_field=tit['brend_field'],
+        #     name_field=tit['name_field'],
+        #     weight_field=tit['weight_field'],
+        #     volume_field=tit['volume_field'],
+
+        #     )
+
+
+        # else:
+        #     # print('все плохо') 
+        #     return redirect("/")  
+
+        return JsonResponse({"error": ""}, status=400)  
+
+    # if request.method == "POST" and 'btnform2' in request.POST:
+    #     print('заходим в форму')
+    #     if form_files.is_valid():
+    #         file = form_files.cleaned_data['files']
+    #         print('валидная')
+    #         form_files = FilesForm(request.POST or None, request.FILES)
+    #         form_files.save(commit=False) 
+    #         file = form_files.cleaned_data['files']
+    #         files_str = form_files.cleaned_data['files'].name
+    #         # print('what is thet:',type(file))
+
+    #         anime = converter(file)
+
+    #         for title in anime.columns.tolist():
+    #             # print(title)
+    #             for key in fields.keys():
+    #                 if any(ext in title.lower() for ext in fields[key]):
+    #                     arr.append(title)
+    #                     tit[key]=title
+
+    #         # anime_cleare = anime[arr] 
+    #         for key in fields.keys():  
+    #             if key in tit.keys():
+    #                 print('')
+    #             else:
+    #                 tit[key] = '------------'   
+
+    #         # print(tit)
+    #         # print(tit["brend_field"])
+            
+    #         AddFiles.objects.create(
+    #         files=file,
+    #         oem_field=tit['oem_field'],
+    #         brend_field=tit['brend_field'],
+    #         name_field=tit['name_field'],
+    #         weight_field=tit['weight_field'],
+    #         volume_field=tit['volume_field'],
+
+    #         )
+
+
+    #     else:
+    #         print('все плохо') 
+    #         return redirect("/")  
+
+
+    if request.method == "POST" and request.is_ajax and 'words' in list(request.POST.keys()):
+        print(list(request.POST.keys()), 'аякс стоп слова')
+        form_words = StopWordsForm(request.POST or None)
+        if form_words.is_valid():
+            instance = form_words.save()
+            ser_instance = serializers.serialize('json', [ instance, ])
+            print("сериализованные слова",ser_instance)
+            return JsonResponse({"instance": ser_instance}, status=200)
+        else:
+            # some form errors occured.
+            return JsonResponse({"error": form_words.errors}, status=400)
+        
+        # StopWords.objects.create(words = request.POST['words'])
+        # form_words.save(commit=False)
+        print('не аякс')
+        return JsonResponse({"error": ""}, status=400)   
+    
+    
+     
+
+    if request.method == "POST" and request.is_ajax and 'brand' in list(request.POST.keys()): 
+        # brand_last = list(Brands.objects.values_list("id", flat=True).order_by("id"))[- 1] + 1
+        print(list(request.POST.keys()), 'аякс бренды')
+        form_brands = BrandsForm(request.POST or None)
+        if form_brands.is_valid():
+            instance = form_brands.save()
+            ser_instance2 = serializers.serialize('json', [ instance, ])
+            # print(ser_instance2)
+            return JsonResponse({"instance": ser_instance2}, status=200)
+        else:
+            # some form errors occured.
+            return JsonResponse({"error": form_brands.errors}, status=400)
+        
+        return JsonResponse({"error": ""}, status=400)  
+
+        # Brands.objects.create(
+            
+        #     brand = request.POST['brand'],
+        #     brand_id = brand_last
+        # )
+        # form_brands.save(commit=False)
+        # return redirect("/")  
 
 #------------------------Добавляем фйлы-------------------------------------------
     # if request.method == "POST":
@@ -357,7 +498,7 @@ def image_upload(request):
       
     }
 
-    # print(context['brands'])
+    # print(context['files'])
 
     
         
