@@ -7,9 +7,12 @@ from upload.views import stop_create,image_upload,Words_update,file_delete,words
 
 urlpatterns = [
     path("", image_upload, name="upload"),
-    path(r'^delete/(?P<id>[0-9]+)/$', words_delete, name='delete-words'),
-    path(r'^del/(?P<id>[0-9]+)/$', file_delete, name='delete-file'),
-    path(r'^delbr/(?P<id>[0-9]+)/$', brands_delete, name='brands-delete'),
+    # path(r'^$', words_asJson, name='words-asJson'),
+    path('delete/<int:id>', words_delete, name='delete-words'),
+    # path('', words_delete, name='delete-words'),
+    path('delpr/<int:id>', file_delete, name='delete-file'),
+    # path(r'^delbr/(?P<id>[0-9]+)/$', brands_delete, name='brands-delete'),
+    path('delbr/<int:id>', brands_delete, name='brands-delete'),
     path("brandscreate", brands_create, name="brands-create"),
     path("bd", bd_create, name="bd-create"),
     path("edit/<int:pk>/", Words_update, name="update"),
