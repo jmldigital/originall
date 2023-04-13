@@ -179,10 +179,10 @@ $(document).ready(function() {
 <div style="display:block;">
 <a href="{% url 'bd-create' %}" class="text-indigo-600 hover:text-indigo-900 pb-5"> Создать Базу </a>
 
-<strong>тут:  {{ test }} </strong>
+
 </div>
 <div class="basic">
-   
+    {% include "bd.html" %}
 </div>
 </div> </div> 
 
@@ -311,8 +311,8 @@ $(document).ready(function() {
                     <td class="text-center sorting_1">${data["oem_field"]||""}</td>
                     <td class="text-center sorting_1">${data["brend_field"]||""}</td>
                     <td class="text-center sorting_1">${data["name_field"]||""}</td>
-                    <td class="text-center sorting_1">${data["volume_field"]||""}</td>
                     <td class="text-center sorting_1">${data["weight_field"]||""}</td>
+                    <td class="text-center sorting_1">${data["volume_field"]||""}</td>
                     <td class="text-center sorting_1">
                         {% csrf_token %}
                             <button type="button"  class="delete_price" data-id="${data["pk"]}" > Удалить </button>

@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.core.files.storage import FileSystemStorage
 import pandas as pd
-#import numpy as np
+import numpy as np
 import os.path
 from mechanize import Browser
 import cgi
@@ -23,18 +23,25 @@ from pandas import read_sql_query
 #python manage.py migrate --run-syncdb
 
 fields = {
-'oem_field':['artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикль','артикул'],
+'oem_field':['Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
 # 'price':['price','cost','preis','цена','стоимость'],
-'brend_field':['makename','brand','preis','marke','hersteller','производитель'],
-'name_field':['detailname','titel','title','название','bezde'],
+'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field'],
+'name_field':['Название','detailname','titel','title','название','bezde'],
 # 'quantity':['volume','menge','quantity','кол-во','количество','min'],
-'weight_field':['weight','gewicht','вес','кг'],
-'volume_field':['volume','band','umfang','lautstärke','volumen','объем'] }
+'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
+'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
 
 
 engine = create_engine('sqlite:///db.sqlite3')
 
+def lowercomapre(list1,list2):
+    dif=''
+    d = [x.lower() for x in list1] # make dict of list with less elements  
+    for m in list2:  # search against bigger list  
+        if m.lower() in d: 
+            dif = m
+    return dif
 
 def cleaner(string):
     reg = re.compile('[^a-zA-Z ]')
@@ -92,7 +99,7 @@ def converter(file):
             df.rename(columns = {title:cleaner(title)}, inplace = True )
     if extension == 'txt':
         # df = pd.read_csv(file, encoding = "ANSI", on_bad_lines='skip', header=0, delim_whitespace=True,engine='python')sep='\s+'
-        print('разделитьель-',delimetr(file))
+        # print('разделитьель-',delimetr(file))
         # df = pd.read_csv(file, on_bad_lines='skip', header=0, sep=delimetr(file))
         df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
         # df.to_csv('df.csv', index = None)
@@ -135,48 +142,96 @@ def bd_create(request):
     brands_low = list(map(str.lower, brands))
     files = AddFiles.objects.all()
 
-
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
+
     for price in prices:
 
+        OneFile = AddFiles.objects.get(files=price)
+
         arr={}
-        # anime = pd.read_excel('mediafiles/'+price)
-  
-        # anime = pd.read_csv('mediafiles/'+price, on_bad_lines='skip')
-        anime = converter("mediafiles/"+price)            
-        for title in anime.columns.tolist():
+        pricedf = converter("mediafiles/"+price) 
 
-            for key in fields.keys():
-                if any(ext in title.lower() for ext in fields[key]):
-                    arr[title] = key
+        #Проверяем на монобренд
+        if OneFile.is_mono:
+            pricedf['brend_field'] = OneFile.brend_field
+   
+        #Проверяем какие поля из прайса есть в наших
+        tilte = pricedf.columns.tolist()
+        for key in fields.keys():
+            result=lowercomapre(fields[key],tilte)
+            arr[key] = result
 
-        anime.rename(columns = arr, inplace = True )
-        anime_cleare = anime[list(arr.values())]
+        #Переименовываем заголовки фрейма на наши
+        NewTitle = {v:k for k, v in arr.items()}
+        pricedf.rename(columns = NewTitle, inplace = True )
 
-        anime_pure = anime_cleare[(anime['weight_field'] > 0) & (anime['volume_field'] > 0) & (anime['volume_field'] > anime['weight_field'])]
-        anime_pure = anime_pure[(anime_pure['brend_field'] != None) & (anime_pure['name_field'] != None) ]
-        # anime_pure_l = anime_pure.replace(to_replace='brend_field', value=brands_low)
+        #Добавляем объем или вес
+        if 'volume_field' in pricedf.columns.tolist():
+            pass
+        else:
+            pricedf['volume_field'] = '0'
 
-        # selecting old value
-        b = anime_pure['brend_field']
-        anime_pure['brend_field'] = anime_pure['brend_field'].str.lower()
-        anime_pure['name_field'] = anime_pure['name_field'].str.upper()
+        if 'weight_field' in pricedf.columns.tolist():
+            pass
+        else:
+            pricedf['weight_field'] = '0'
 
-        # anime_pure.to_csv('df.csv', index = None)
+ 
 
+        #Меняем запятые на точки
+        if (pricedf['weight_field'].dtype == np.float64 or pricedf['weight_field'].dtype == np.int64):
+            pass
+        else:
+            pricedf['weight_field'] = pricedf['weight_field'].str.replace(',', '.')
+
+        if (pricedf['volume_field'].dtype == np.float64 or pricedf['volume_field'].dtype == np.int64):
+            pass
+        else:
+            pricedf['volume_field'] = pricedf['volume_field'].str.replace(',', '.')
+
+ 
+        #Убираем нулевые поля веса
+        pricedfBDField = pricedf[list(arr.keys())]
+        WeightVolumeFilter = pricedfBDField[(pricedfBDField['weight_field'].astype(float) > 0) | (pricedfBDField['volume_field'].astype(float) > 0)]
+ 
+        # print(WeightVolumeFilter)
+
+        #Убираем пустые бренды и названия
+        # NameBrendFilter = WeightVolumeFilter[WeightVolumeFilter['name_field'] != None]
+        NameFilter = WeightVolumeFilter.name_field.notnull()
+        BrandFilter = WeightVolumeFilter.brend_field.notnull()
+
+        WeightVolumeFilter = WeightVolumeFilter[NameFilter]
+        NameBrendFilter = WeightVolumeFilter[BrandFilter]
+
+        # NameBrendFilter = WeightVolumeFilter[WeightVolumeFilter['name_field'].str.strip().astype(bool)]
+
+        # print(WeightVolumeFilter)
+        
+        # убираем регистры
+        # b = NameBrendFilter['brend_field']
+        NameBrendFilter['brend_field'] = NameBrendFilter['brend_field'].str.lower()
+        NameBrendFilter['name_field'] = NameBrendFilter['name_field'].str.upper()
+
+        # print(NameBrendFilter)
            
-        # selecting rows based on condition 
-        anime_filter = anime_pure[anime_pure['brend_field'].isin(brands_low)] 
-        anime_filter_words = anime_filter[~anime_filter['name_field'].isin(words_up)] 
-        anime_filter_words.to_csv('df.csv', index = None)
+
+        # фильтруем по брендам и стоп словам
+        BrandsFilter = NameBrendFilter[NameBrendFilter['brend_field'].isin(brands_low)] 
+        # print(BrandsFilter)
+
+        WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
+        WordsFilter.to_csv('df.csv', index = None)
 
 
-        anime_filter_words.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, index=True, index_label='id')
+        WordsFilter.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
 
 
     context ={'BD':BD}
-    # return redirect(request.META['HTTP_REFERER'])
-    return render(request, "bd.html", context)
+    render(request, "bd.html", context)
+    return redirect(request.META['HTTP_REFERER'])
+    
+    # return HttpResponseRedirect ("ваш URL") 
 
 
 
@@ -186,18 +241,6 @@ def brands_create(request):
     form = BrandsForm(request.POST, request.FILES)
     brands = list(Brands.objects.values_list('brand', flat=True).distinct())
     brands_old = pd.DataFrame(brands)
-   
-
-
-    
-    # engine2 = create_engine('sqlite:///college.db', echo = True)
-    # meta = MetaData()
-    # brendss = Table(
-    # 'brendss', meta, 
-    # Column('id', Integer, primary_key = True), 
-    # Column('brendок', String), 
-    # )
-    # meta.create_all(engine2)
 
     if request.method == "POST":
         if form.is_valid():
@@ -206,13 +249,6 @@ def brands_create(request):
             # form.save(commit=False)
             brendsdf = pd.read_excel(brends)
             brendsdf.columns=["brand"]
-
-            # anime_filter_words = anime_filter[~anime_filter['name_field'].isin(words_up)] 
-            # brends_dif = brendsdf[~brendsdf['brand'].isin(brands_old)] 
-
-            # brends_new = pd.concat([brands_old, brends_dif], ignore_index=False)
-
-            # print(brends_dif)
 
             brendsdf['files'] = None
             # print(brendsdf)
@@ -248,6 +284,7 @@ def image_upload(request):
     words = StopWords.objects.all()
     brands = Brands.objects.all()
     BD = OriginallBD.objects.all()
+    is_mono=False
     # print('sdfsdfdf',brands)
 
 
@@ -274,9 +311,13 @@ def image_upload(request):
                     print('')
                 else:
                     if key == 'brend_field':
+                        is_mono=True
                         tit[key] =  brend_field
                     else:
                         tit[key] = '-----------------' 
+
+            print(';nj nbn',tit)
+
             newfiles = AddFiles.objects.create(
             files=file,
             oem_field=tit['oem_field'],
@@ -284,14 +325,16 @@ def image_upload(request):
             name_field=tit['name_field'],
             weight_field=tit['weight_field'],
             volume_field=tit['volume_field'],
+            is_mono = is_mono
             )
+             # newfiles.is_mono = True
 
             data = {'pk':newfiles.pk,'oem_field': tit['oem_field'], 'brend_field': tit['brend_field'], 'weight_field': tit['weight_field'], 'name_field': tit['name_field'],'volume_field':tit['volume_field']}
             ser_instance = serializers.serialize('json', [ instance, ])
-            print('это сериализация прайсов',data)
+            # print('это сериализация прайсов',data)
             return JsonResponse({"instance": ser_instance,'data':data}, status=200)
         else:
-            print('форма не валидная',form_files.errors)
+            # print('форма не валидная',form_files.errors)
             # some form errors occured.
             return JsonResponse({"error": form_files.errors}, status=404)
             # file = form_files.cleaned_data['files']
@@ -385,12 +428,12 @@ def image_upload(request):
 
 
     if request.method == "POST" and request.is_ajax and 'words' in list(request.POST.keys()):
-        print(list(request.POST.keys()), 'аякс стоп слова')
+        # print(list(request.POST.keys()), 'аякс стоп слова')
         form_words = StopWordsForm(request.POST or None)
         if form_words.is_valid():
             instance = form_words.save()
             ser_instance = serializers.serialize('json', [ instance, ])
-            print("сериализованные слова",ser_instance)
+            # print("сериализованные слова",ser_instance)
             return JsonResponse({"instance": ser_instance}, status=200)
         else:
             # some form errors occured.
@@ -406,7 +449,7 @@ def image_upload(request):
 
     if request.method == "POST" and request.is_ajax and 'brand' in list(request.POST.keys()): 
         # brand_last = list(Brands.objects.values_list("id", flat=True).order_by("id"))[- 1] + 1
-        print(list(request.POST.keys()), 'аякс бренды')
+        # print(list(request.POST.keys()), 'аякс бренды')
         form_brands = BrandsForm(request.POST or None)
         if form_brands.is_valid():
             instance = form_brands.save()
