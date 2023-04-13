@@ -13,6 +13,7 @@ class AddFiles(models.Model):
     name_field = models.CharField(max_length=130, verbose_name='название детали',blank=True,null=True)
     weight_field = models.CharField(max_length=130, verbose_name='вес',blank=True,null=True)
     volume_field = models.CharField(max_length=130, verbose_name='объем',blank=True,null=True)
+    is_mono = models.BooleanField(default=False)
 
 # def __str__(self):
 #     return self.files
