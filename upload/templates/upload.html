@@ -301,14 +301,21 @@ $(document).ready(function() {
             success: function (response) {
                 $("#price-forms").trigger('reset');
                 var instance = JSON.parse(response["instance"]);
+                var data = (response["data"]);
+                // console.log(data)
                 var fields = instance[0]["fields"];
                 var pk = instance[0]["pk"];
                 $("#example4 tbody").prepend(
-                   `<tr class="post-${pk}">
+                   `<tr class="post-${data["pk"]}">
                     <td class="text-center sorting_1">${fields["files"]||""}</td>
+                    <td class="text-center sorting_1">${data["oem_field"]||""}</td>
+                    <td class="text-center sorting_1">${data["brend_field"]||""}</td>
+                    <td class="text-center sorting_1">${data["name_field"]||""}</td>
+                    <td class="text-center sorting_1">${data["volume_field"]||""}</td>
+                    <td class="text-center sorting_1">${data["weight_field"]||""}</td>
                     <td class="text-center sorting_1">
                         {% csrf_token %}
-                            <button type="button"  class="delete_buttonbr" data-id="${pk}" > Удалить </button>
+                            <button type="button"  class="delete_price" data-id="${data["pk"]}" > Удалить </button>
                         </td>
                     </tr>`
                 );
