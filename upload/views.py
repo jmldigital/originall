@@ -105,7 +105,7 @@ def converter(file):
 
 
 def file_delete(request, id=None):   
-    file = AddFiles.objects.get(id=id)
+    file = AddFiles.objects.get(pk=id)
     file.delete()
     return JsonResponse({'success': True, 'message': 'Delete','id':id}) 
 
@@ -261,7 +261,7 @@ def image_upload(request):
             files_str = form_files.cleaned_data['files'].name
             brend_field = form_files.cleaned_data['brend_field']
             instance = form_files.save(commit=False)
-            print('dct jr',brend_field)
+            # print('dct jr',instance)
             anime = converter(file)
             for title in anime.columns.tolist():
                 for key in fields.keys():
@@ -277,7 +277,7 @@ def image_upload(request):
                         tit[key] =  brend_field
                     else:
                         tit[key] = '-----------------' 
-            AddFiles.objects.create(
+            newfiles = AddFiles.objects.create(
             files=file,
             oem_field=tit['oem_field'],
             brend_field=tit['brend_field'],
@@ -286,10 +286,10 @@ def image_upload(request):
             volume_field=tit['volume_field'],
             )
 
-
+            data = {'pk':newfiles.pk,'oem_field': tit['oem_field'], 'brend_field': tit['brend_field'], 'weight_field': tit['weight_field'], 'name_field': tit['name_field'],'volume_field':tit['volume_field']}
             ser_instance = serializers.serialize('json', [ instance, ])
-            # print('это сериализация прайсов',ser_instance)
-            return JsonResponse({"instance": ser_instance}, status=200)
+            print('это сериализация прайсов',data)
+            return JsonResponse({"instance": ser_instance,'data':data}, status=200)
         else:
             print('форма не валидная',form_files.errors)
             # some form errors occured.
