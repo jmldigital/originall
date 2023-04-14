@@ -34,6 +34,7 @@ fields = {
 
 
 engine = create_engine('sqlite:///db.sqlite3')
+sumdf = pd.DataFrame(index = fields.keys())
 
 def lowercomapre(list1,list2):
     dif=''
@@ -144,11 +145,13 @@ def bd_create(request):
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
 
+    DataFrames = []
+
     for price in prices:
-
         OneFile = AddFiles.objects.get(files=price)
-
         arr={}
+
+        #Получаем датафрейм      
         pricedf = converter("mediafiles/"+price) 
 
         #Проверяем на монобренд
@@ -176,9 +179,7 @@ def bd_create(request):
         else:
             pricedf['weight_field'] = '0'
 
- 
-
-        #Меняем запятые на точки
+         #Меняем запятые на точки в дробных 
         if (pricedf['weight_field'].dtype == np.float64 or pricedf['weight_field'].dtype == np.int64):
             pass
         else:
@@ -190,50 +191,114 @@ def bd_create(request):
             pricedf['volume_field'] = pricedf['volume_field'].str.replace(',', '.')
 
  
-        #Убираем нулевые поля веса
+        #оставляем если есть хотябы одно значение веса
         pricedfBDField = pricedf[list(arr.keys())]
         WeightVolumeFilter = pricedfBDField[(pricedfBDField['weight_field'].astype(float) > 0) | (pricedfBDField['volume_field'].astype(float) > 0)]
  
         # print(WeightVolumeFilter)
 
         #Убираем пустые бренды и названия
-        # NameBrendFilter = WeightVolumeFilter[WeightVolumeFilter['name_field'] != None]
         NameFilter = WeightVolumeFilter.name_field.notnull()
         BrandFilter = WeightVolumeFilter.brend_field.notnull()
 
         WeightVolumeFilter = WeightVolumeFilter[NameFilter]
         NameBrendFilter = WeightVolumeFilter[BrandFilter]
 
-        # NameBrendFilter = WeightVolumeFilter[WeightVolumeFilter['name_field'].str.strip().astype(bool)]
-
         # print(WeightVolumeFilter)
         
         # убираем регистры
-        # b = NameBrendFilter['brend_field']
         NameBrendFilter['brend_field'] = NameBrendFilter['brend_field'].str.lower()
         NameBrendFilter['name_field'] = NameBrendFilter['name_field'].str.upper()
-
-        # print(NameBrendFilter)
-           
+         
 
         # фильтруем по брендам и стоп словам
         BrandsFilter = NameBrendFilter[NameBrendFilter['brend_field'].isin(brands_low)] 
-        # print(BrandsFilter)
-
         WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
-        WordsFilter.to_csv('df.csv', index = None)
+        DataFrames.append(WordsFilter)
+
+    result = pd.concat(DataFrames,ignore_index=True)
 
 
-        WordsFilter.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
 
+    result['weight_field'] = result.weight_field.astype(float) 
+    result['volume_field'] = result.volume_field.astype(float)
+
+    # print(result.info())
+
+    # Получаем все дубликаты в отдлеьный фрейм
+    # no_dub_columns = result.T.drop_duplicates().T
+  
+
+    # Убираем все дубликаты из общего фрейма
+    result.drop_duplicates(inplace=True)
+    
+
+    # Получаем все несовпадения по оем
+    dub_oem = result[(result[['oem_field']].duplicated(keep=False))]
+    dub_oem.to_csv('df_duble.csv', index = False)
+
+    # Вынимаем из фрйма оставшиеся совпадения по оем
+    result.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
+
+    # Получаем все дубликаты с полностью заполненными полями
+    dub_oem_name = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
+
+
+    # ПЕрвый куско очищенной итерации со всеми полями
+    ful_oem_field = dub_oem_name.drop_duplicates(subset = 'oem_field')
+
+
+    # Датафрейм без куска с полными повторениями
+    FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
+
+   
+    # Оставляем максимальные значения по весу из дубликатов 
+    max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False,as_index=True).apply(lambda x: x.loc[x.weight_field.idxmax()])
+
+
+    # Получаем группировку с максимальные значения по объему из дубликатов 
+    max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
+
+
+    # Оставляем максимальные значения по объему из дубликатов
+    max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['volume_field'] != 0 ])
+
+
+# ---------------------! полные поля+максимальыне по весу, плюс не нулевые по объему--------------------------------
+    full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True, sort=False)
+
+    # res = full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['weight_field'] == 0 ]['volume_field'].sum())
+    #df.groupby(['continent']).apply(lambda x: x[x['Member_G20'] == 'Y' ]['GDP(trillion)'].sum())
+    # res = full[dub_oem[['oem_field']].duplicated(keep=False)]
+
+
+# --------------------! смердженные по весу и объему дубликаты---------------------------
+    res = full[(full[['oem_field']].duplicated(keep=False))]
+    # res_sum = res.groupby('oem_field').sum().reset_index() - суммирует так же и другие поля
+
+    res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
+    res_sum = res.drop_duplicates(subset=['oem_field'])
+
+
+# ---------------------! кусок без смрджененых дубликатов--------------------------------
+    full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
+    # print(full)
+
+
+   
+# --------------------! полнсотью очищенный и смердженный кусок кусок---------------------------   
+    pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
+
+    finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
+
+
+    finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
 
     context ={'BD':BD}
     render(request, "bd.html", context)
     return redirect(request.META['HTTP_REFERER'])
     
     # return HttpResponseRedirect ("ваш URL") 
-
-
 
 
 
