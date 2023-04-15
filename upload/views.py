@@ -153,6 +153,8 @@ def bd_create(request):
 
         #Получаем датафрейм      
         pricedf = converter("mediafiles/"+price) 
+            
+
 
         #Проверяем на монобренд
         if OneFile.is_mono:
@@ -195,7 +197,6 @@ def bd_create(request):
         pricedfBDField = pricedf[list(arr.keys())]
         WeightVolumeFilter = pricedfBDField[(pricedfBDField['weight_field'].astype(float) > 0) | (pricedfBDField['volume_field'].astype(float) > 0)]
  
-        # print(WeightVolumeFilter)
 
         #Убираем пустые бренды и названия
         NameFilter = WeightVolumeFilter.name_field.notnull()
@@ -204,8 +205,7 @@ def bd_create(request):
         WeightVolumeFilter = WeightVolumeFilter[NameFilter]
         NameBrendFilter = WeightVolumeFilter[BrandFilter]
 
-        # print(WeightVolumeFilter)
-        
+         
         # убираем регистры
         NameBrendFilter['brend_field'] = NameBrendFilter['brend_field'].str.lower()
         NameBrendFilter['name_field'] = NameBrendFilter['name_field'].str.upper()
@@ -214,10 +214,12 @@ def bd_create(request):
         # фильтруем по брендам и стоп словам
         BrandsFilter = NameBrendFilter[NameBrendFilter['brend_field'].isin(brands_low)] 
         WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
+
+
+
         DataFrames.append(WordsFilter)
 
     result = pd.concat(DataFrames,ignore_index=True)
-
 
 
     result['weight_field'] = result.weight_field.astype(float) 
@@ -233,6 +235,7 @@ def bd_create(request):
     result.drop_duplicates(inplace=True)
     
 
+
     # Получаем все несовпадения по оем
     dub_oem = result[(result[['oem_field']].duplicated(keep=False))]
     dub_oem.to_csv('df_duble.csv', index = False)
@@ -240,59 +243,69 @@ def bd_create(request):
     # Вынимаем из фрйма оставшиеся совпадения по оем
     result.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
 
+
+
     # Получаем все дубликаты с полностью заполненными полями
     dub_oem_name = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
 
-
-    # ПЕрвый куско очищенной итерации со всеми полями
-    ful_oem_field = dub_oem_name.drop_duplicates(subset = 'oem_field')
-
-
-    # Датафрейм без куска с полными повторениями
-    FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
-
-   
-    # Оставляем максимальные значения по весу из дубликатов 
-    max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False,as_index=True).apply(lambda x: x.loc[x.weight_field.idxmax()])
+    if len(dub_oem_name)  == 0:
+        result.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
+        result.to_csv('df.csv', index = False)
+    else:
 
 
-    # Получаем группировку с максимальные значения по объему из дубликатов 
-    max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
+        # ПЕрвый куско очищенной итерации со всеми полями
+        ful_oem_field = dub_oem_name.drop_duplicates(subset = 'oem_field')
 
 
-    # Оставляем максимальные значения по объему из дубликатов
-    max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['volume_field'] != 0 ])
+
+        # Датафрейм без куска с полными повторениями
+        FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
 
 
-# ---------------------! полные поля+максимальыне по весу, плюс не нулевые по объему--------------------------------
-    full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True, sort=False)
 
-    # res = full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['weight_field'] == 0 ]['volume_field'].sum())
-    #df.groupby(['continent']).apply(lambda x: x[x['Member_G20'] == 'Y' ]['GDP(trillion)'].sum())
-    # res = full[dub_oem[['oem_field']].duplicated(keep=False)]
+        # Оставляем максимальные значения по весу из дубликатов 
+        max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False,as_index=True).apply(lambda x: x.loc[x.weight_field.idxmax()])
 
-
-# --------------------! смердженные по весу и объему дубликаты---------------------------
-    res = full[(full[['oem_field']].duplicated(keep=False))]
-    # res_sum = res.groupby('oem_field').sum().reset_index() - суммирует так же и другие поля
-
-    res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
-    res_sum = res.drop_duplicates(subset=['oem_field'])
+    
+        # Получаем группировку с максимальные значения по объему из дубликатов 
+        max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
 
 
-# ---------------------! кусок без смрджененых дубликатов--------------------------------
-    full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
-    # print(full)
+        # Оставляем максимальные значения по объему из дубликатов
+        max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['volume_field'] != 0 ])
 
 
-   
-# --------------------! полнсотью очищенный и смердженный кусок кусок---------------------------   
-    pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
+    # ---------------------! полные поля+максимальыне по весу, плюс не нулевые по объему--------------------------------
+        full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True, sort=False)
 
-    finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
+        # res = full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['weight_field'] == 0 ]['volume_field'].sum())
+        #df.groupby(['continent']).apply(lambda x: x[x['Member_G20'] == 'Y' ]['GDP(trillion)'].sum())
+        # res = full[dub_oem[['oem_field']].duplicated(keep=False)]
 
 
-    finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
+    # --------------------! смердженные по весу и объему дубликаты---------------------------
+        res = full[(full[['oem_field']].duplicated(keep=False))]
+        # res_sum = res.groupby('oem_field').sum().reset_index() - суммирует так же и другие поля
+
+        res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
+        res_sum = res.drop_duplicates(subset=['oem_field'])
+
+
+    # ---------------------! кусок без смрджененых дубликатов--------------------------------
+        full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
+        # print(full)
+
+
+    
+    # --------------------! полнсотью очищенный и смердженный кусок кусок---------------------------   
+        pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
+
+        finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
+
+
+        finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
+        finalDF.to_csv('df.csv', index = False)
 
     context ={'BD':BD}
     render(request, "bd.html", context)
