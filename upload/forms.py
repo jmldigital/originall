@@ -27,9 +27,6 @@ class FilesForm(ModelForm):
         
 
 
-
-
-
 class GeeksForm(forms.Form):
     words = forms.CharField()
 

@@ -15,6 +15,7 @@ urlpatterns = [
     path('delbr/<int:id>', brands_delete, name='brands-delete'),
     path("brandscreate", brands_create, name="brands-create"),
     path("bd", bd_create, name="bd-create"),
+    # path('search/', SearchResultsView.as_view(), name='search_results'),
     path("edit/<int:pk>/", Words_update, name="update"),
     path("admin/", admin.site.urls),
     #path('edit/<int:pk>/', WordsUpdate.as_view(), name='stop-update')

@@ -17,6 +17,10 @@ from django.core import serializers
 from django.views.generic.edit import FormView
 from .forms import FileFieldForm
 from pandas import read_sql_query
+from django.db.models import Q
+
+from django.views.generic import TemplateView, ListView
+
 # import pandasql
 # import pysqldf
 
@@ -135,13 +139,15 @@ def brands_delete(request, id=None):
     return JsonResponse({'success': True, 'message': 'Delete','id':id})   
 
 
+
 def bd_create(request):   
-    BD = OriginallBD.objects.all()
+    # BD = OriginallBD.objects.all()
     words = StopWords.objects.values_list('words', flat=True).distinct()
     words_up=list(map(str.upper, words))
     brands = Brands.objects.values_list('brand', flat=True).distinct()
     brands_low = list(map(str.lower, brands))
     files = AddFiles.objects.all()
+    BZ = AddFiles.objects.all()
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
 
@@ -154,8 +160,6 @@ def bd_create(request):
         #Получаем датафрейм      
         pricedf = converter("mediafiles/"+price) 
             
-
-
         #Проверяем на монобренд
         if OneFile.is_mono:
             pricedf['brend_field'] = OneFile.brend_field
@@ -215,12 +219,9 @@ def bd_create(request):
         BrandsFilter = NameBrendFilter[NameBrendFilter['brend_field'].isin(brands_low)] 
         WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
 
-
-
         DataFrames.append(WordsFilter)
 
     result = pd.concat(DataFrames,ignore_index=True)
-
 
     result['weight_field'] = result.weight_field.astype(float) 
     result['volume_field'] = result.volume_field.astype(float)
@@ -229,21 +230,16 @@ def bd_create(request):
 
     # Получаем все дубликаты в отдлеьный фрейм
     # no_dub_columns = result.T.drop_duplicates().T
-  
 
     # Убираем все дубликаты из общего фрейма
     result.drop_duplicates(inplace=True)
     
-
-
     # Получаем все несовпадения по оем
     dub_oem = result[(result[['oem_field']].duplicated(keep=False))]
     dub_oem.to_csv('df_duble.csv', index = False)
 
     # Вынимаем из фрйма оставшиеся совпадения по оем
     result.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
-
-
 
     # Получаем все дубликаты с полностью заполненными полями
     dub_oem_name = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
@@ -253,28 +249,20 @@ def bd_create(request):
         result.to_csv('df.csv', index = False)
     else:
 
-
         # ПЕрвый куско очищенной итерации со всеми полями
         ful_oem_field = dub_oem_name.drop_duplicates(subset = 'oem_field')
-
-
 
         # Датафрейм без куска с полными повторениями
         FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
 
-
-
         # Оставляем максимальные значения по весу из дубликатов 
         max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False,as_index=True).apply(lambda x: x.loc[x.weight_field.idxmax()])
 
-    
         # Получаем группировку с максимальные значения по объему из дубликатов 
         max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
 
-
         # Оставляем максимальные значения по объему из дубликатов
         max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['volume_field'] != 0 ])
-
 
     # ---------------------! полные поля+максимальыне по весу, плюс не нулевые по объему--------------------------------
         full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True, sort=False)
@@ -283,7 +271,6 @@ def bd_create(request):
         #df.groupby(['continent']).apply(lambda x: x[x['Member_G20'] == 'Y' ]['GDP(trillion)'].sum())
         # res = full[dub_oem[['oem_field']].duplicated(keep=False)]
 
-
     # --------------------! смердженные по весу и объему дубликаты---------------------------
         res = full[(full[['oem_field']].duplicated(keep=False))]
         # res_sum = res.groupby('oem_field').sum().reset_index() - суммирует так же и другие поля
@@ -291,28 +278,32 @@ def bd_create(request):
         res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
         res_sum = res.drop_duplicates(subset=['oem_field'])
 
-
     # ---------------------! кусок без смрджененых дубликатов--------------------------------
         full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
         # print(full)
-
-
     
     # --------------------! полнсотью очищенный и смердженный кусок кусок---------------------------   
         pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
 
         finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
-
-
         finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
         finalDF.to_csv('df.csv', index = False)
 
-    context ={'BD':BD}
-    render(request, "bd.html", context)
-    return redirect(request.META['HTTP_REFERER'])
-    
-    # return HttpResponseRedirect ("ваш URL") 
 
+    render(request, "search_results.html")
+    return redirect(request.META['HTTP_REFERER'])
+
+
+# class SearchResultsView(ListView):
+#     model = OriginallBD
+#     template_name = 'search_results.html'
+ 
+#     def get_queryset(self): # новый
+#         query = self.request.GET.get('q')
+#         object_list = OriginallBD.objects.filter(
+#             Q(brend_field__icontains=query) | Q(name_field__icontains=query)
+#         )
+#         return object_list
 
 
 def brands_create(request):
@@ -361,7 +352,7 @@ def image_upload(request):
     form_brands = BrandsForm(request.POST or None)
     words = StopWords.objects.all()
     brands = Brands.objects.all()
-    BD = OriginallBD.objects.all()
+    # BD = OriginallBD.objects.all()
     is_mono=False
     # print('sdfsdfdf',brands)
 
@@ -377,37 +368,21 @@ def image_upload(request):
             brend_field = form_files.cleaned_data['brend_field']
             instance = form_files.save(commit=False)
             # print('dct jr',instance)
-            anime = converter(file)
-            for title in anime.columns.tolist():
-                for key in fields.keys():
-                    if any(ext in title.lower() for ext in fields[key]):
-                        arr.append(title)
-                        tit[key]=title
 
-            for key in fields.keys():  
-                if key in tit.keys():
-                    print('')
-                else:
-                    if key == 'brend_field':
-                        is_mono=True
-                        tit[key] =  brend_field
-                    else:
-                        tit[key] = '-----------------' 
+            if brend_field != None:
+                is_mono=True
 
-            print(';nj nbn',tit)
+
+            # print(';nj nbn',tit)
 
             newfiles = AddFiles.objects.create(
             files=file,
-            oem_field=tit['oem_field'],
-            brend_field=tit['brend_field'],
-            name_field=tit['name_field'],
-            weight_field=tit['weight_field'],
-            volume_field=tit['volume_field'],
+            brend_field=brend_field,
             is_mono = is_mono
             )
              # newfiles.is_mono = True
 
-            data = {'pk':newfiles.pk,'oem_field': tit['oem_field'], 'brend_field': tit['brend_field'], 'weight_field': tit['weight_field'], 'name_field': tit['name_field'],'volume_field':tit['volume_field']}
+            data = {'pk':newfiles.pk, 'brend_field': brend_field}
             ser_instance = serializers.serialize('json', [ instance, ])
             # print('это сериализация прайсов',data)
             return JsonResponse({"instance": ser_instance,'data':data}, status=200)
@@ -415,94 +390,10 @@ def image_upload(request):
             # print('форма не валидная',form_files.errors)
             # some form errors occured.
             return JsonResponse({"error": form_files.errors}, status=404)
-            # file = form_files.cleaned_data['files']
-            # print(file)
-            # form_files = FilesForm(request.POST or None, request.FILES)
-            # form_files.save(commit=False) 
-            # file = form_files.cleaned_data['files']
-            # files_str = form_files.cleaned_data['files'].name
-            # print('what is thet:',type(file))
-
-        #     anime = converter(file)
-
-        #     for title in anime.columns.tolist():
-        #         # print(title)
-        #         for key in fields.keys():
-        #             if any(ext in title.lower() for ext in fields[key]):
-        #                 arr.append(title)
-        #                 tit[key]=title
-
-        #     # anime_cleare = anime[arr] 
-        #     for key in fields.keys():  
-        #         if key in tit.keys():
-        #             print('')
-        #         else:
-        #             tit[key] = '------------'   
-
-        #     # print(tit)
-        #     # print(tit["brend_field"])
-            
-        #     AddFiles.objects.create(
-        #     files=file,
-        #     oem_field=tit['oem_field'],
-        #     brend_field=tit['brend_field'],
-        #     name_field=tit['name_field'],
-        #     weight_field=tit['weight_field'],
-        #     volume_field=tit['volume_field'],
-
-        #     )
-
-
-        # else:
-        #     # print('все плохо') 
-        #     return redirect("/")  
+           
 
         return JsonResponse({"error": ""}, status=400)  
 
-    # if request.method == "POST" and 'btnform2' in request.POST:
-    #     print('заходим в форму')
-    #     if form_files.is_valid():
-    #         file = form_files.cleaned_data['files']
-    #         print('валидная')
-    #         form_files = FilesForm(request.POST or None, request.FILES)
-    #         form_files.save(commit=False) 
-    #         file = form_files.cleaned_data['files']
-    #         files_str = form_files.cleaned_data['files'].name
-    #         # print('what is thet:',type(file))
-
-    #         anime = converter(file)
-
-    #         for title in anime.columns.tolist():
-    #             # print(title)
-    #             for key in fields.keys():
-    #                 if any(ext in title.lower() for ext in fields[key]):
-    #                     arr.append(title)
-    #                     tit[key]=title
-
-    #         # anime_cleare = anime[arr] 
-    #         for key in fields.keys():  
-    #             if key in tit.keys():
-    #                 print('')
-    #             else:
-    #                 tit[key] = '------------'   
-
-    #         # print(tit)
-    #         # print(tit["brend_field"])
-            
-    #         AddFiles.objects.create(
-    #         files=file,
-    #         oem_field=tit['oem_field'],
-    #         brend_field=tit['brend_field'],
-    #         name_field=tit['name_field'],
-    #         weight_field=tit['weight_field'],
-    #         volume_field=tit['volume_field'],
-
-    #         )
-
-
-    #     else:
-    #         print('все плохо') 
-    #         return redirect("/")  
 
 
     if request.method == "POST" and request.is_ajax and 'words' in list(request.POST.keys()):
@@ -521,9 +412,7 @@ def image_upload(request):
         # form_words.save(commit=False)
         print('не аякс')
         return JsonResponse({"error": ""}, status=400)   
-    
-    
-     
+         
 
     if request.method == "POST" and request.is_ajax and 'brand' in list(request.POST.keys()): 
         # brand_last = list(Brands.objects.values_list("id", flat=True).order_by("id"))[- 1] + 1
@@ -539,74 +428,21 @@ def image_upload(request):
             return JsonResponse({"error": form_brands.errors}, status=400)
         
         return JsonResponse({"error": ""}, status=400)  
+    
+    if request.method == "GET": 
+        query = request.GET.get('q', None)
+        if query:
+            print('yes',query)
+            object_list = OriginallBD.objects.filter(
+                Q(brend_field__icontains=query) | Q(name_field__icontains=query)
+            )
+        else:
+            print('none',query)
+            object_list = OriginallBD.objects.filter(pk=1)    
 
-        # Brands.objects.create(
-            
-        #     brand = request.POST['brand'],
-        #     brand_id = brand_last
-        # )
-        # form_brands.save(commit=False)
-        # return redirect("/")  
-
-#------------------------Добавляем фйлы-------------------------------------------
-    # if request.method == "POST":
-    #     form_files = FilesForm(request.POST or None, request.FILES)
-    #     # words = StopWords.objects.get(id=1)
-    #     if form_files.is_valid():
-    #         print('все ок')
-    #         form_files.save()
-    #     else:
-    #         print('все плохо')  
-
-            # words.words = words
-            # words.save()
-
-            # file = form_files.cleaned_data['files']
-            # files_str = form_files.cleaned_data['files'].name
-            # extension = files_str.split(".")[1]
-            # if extension == 'xls':
-            #     anime = pd.read_excel(file)
-            #     for title in anime.columns.tolist():
-            #         for key in fields.keys():
-            #             if any(ext in title.lower() for ext in fields[key]):
-            #                 arr.append(title)
-            #                 tit[key]=title
-
-            # anime_cleare = anime[arr] 
-            # for key in fields.keys():  
-            #     if key in tit.keys():
-            #         print('')
-            #     else:
-            #         tit[key] = 'ничего'   
-
-            # # print(tit)
-            # # print(tit["brend_field"])
-            
-            # AddFiles.objects.create(
-            # files=file,
-            # oem_field=tit['oem_field'],
-            # brend_field=tit['brend_field'],
-            # name_field=tit['name_field'],
-            # weight_field=tit['weight_field'],
-            # volume_field=tit['volume_field'],
-
-            # )
-           
-            # frame = anime_cleare.to_html('upload/templates/filename.html')
-            # frame = anime_cleare.to_html()
-            # r.append(frame)
-
-            # ff=render(request, frame)
-            # print(HttpResponse(frame))
-  
-            # print(frame)
-            # HttpResponse(frame, headers={'Content-Type': 'text/html'})
-            # form_files.save()
-            # return redirect("/")  
+    context ={'BD':object_list}
 
 
-    # mytextfield = "".join(frame.split())
-    # print('nen',frame)
     context = {
         'files':AddFiles.objects.all(),
         'form_words': form_words,
@@ -615,14 +451,10 @@ def image_upload(request):
         'frame':frame,
         'words':words,
         'brands':brands,
-        'BD':BD 
+        'BD':object_list,
       
     }
-
-    # print(context['files'])
-
-    
-        
+          
     return render(request, "upload.html", context)
 
 

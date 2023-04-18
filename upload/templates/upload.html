@@ -1,9 +1,19 @@
+{% load static %}
 
 <head>
 <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.css" />
 <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.js"></script>
+<script src="{% static 'jquery.cookie.js' %}"></script>
+
+<link href="{% static 'style.css' %}" rel="stylesheet">
+
+
+<!-- <script type="text/javascript"> window.CSRF_TOKEN = "{{ csrf_token }}"; </script> -->
+
+<script src="{% static 'main.js' %}"></script>
+
 
 </head>
 
@@ -54,7 +64,7 @@ $(document).ready(function() {
                       <td class="text-center"> {{ word.words }} </td>
                       <td class="text-center">
                         {% csrf_token %}
-                          <button type="button"  class="delete_button" data-id="{{ word.pk }}" > Удалить </button>
+                          <button type="button"  class="delete_words" data-id="{{ word.pk }}" > Удалить </button>
                       </td>
                   </tr>
               {% endfor %}
@@ -117,21 +127,14 @@ $(document).ready(function() {
     </div>
 
 
-
-
-
-       <!---- прайсы------------------------ -->
+       <div id="progress-box" class="h-1 w-full bg-neutral-200 dark:bg-neutral-600 not-visible"></div>
 
   <div class="w-full mb-6 py-6  justify-between items-left  border-gray-200">
     <table id="example4" class="table table-striped display nowrap " style="width:100%;">
         <thead>
             <tr>
                 <th>файлы</th>
-                <th>номер</th>
                 <th>бренд</th>
-                <th>название</th>
-                <th>вес</th>
-                <th>объем</th>
                 <th></th>
             </tr>
         </thead>
@@ -139,11 +142,8 @@ $(document).ready(function() {
             {% for file in files %}
             <tr class="post-{{file.pk}}">
                 <td class="text-center"> {{ file.files }} </td>
-                <td class="text-center"> {{ file.oem_field }} </td>
                 <td class="text-center"> {{ file.brend_field }} </td>                
-                <td class="text-center"> {{ file.name_field }} </td>
-                <td class="text-center"> {{ file.weight_field }} </td>
-                <td class="text-center"> {{ file.volume_field }} </td>
+
                 <td class="text-center">
                     {% csrf_token %}
                     <button type="button"  class="delete_price" data-id="{{ file.pk }}" > Удалить </button>
@@ -157,10 +157,8 @@ $(document).ready(function() {
                 <th>Всего {{ len }}</th> 
                 <th></th>  
                 <th></th>
-                <th></th>
-                <th></th>
-                <th></th>
-                <th></th>
+
+
             </tr>        
         </tfoot>
     </table>
@@ -182,200 +180,15 @@ $(document).ready(function() {
 </div>
 
 <div class="basic">
-    {% include "bd.html" %}
+    {% include "search_results.html" %}
 </div>
+
+
+
+
 </div> </div> 
 
 {% endblock content%}
-
-{% block javascript %}
-<script>
-    $("#stopwords-form").submit(function (e) {
-        // preventing default actions
-        e.preventDefault();
-        // serialize the data for sending the form data.
-        var serializedData = $(this).serialize();
-        // Ajax Call
-        $.ajax({
-            type: 'POST',
-            url: "{% url 'upload' %}",
-            data: serializedData,
-			// handle a successful response
-            success: function (response) {
-                // On successful, clear all form data
-                $("#stopwords-form").trigger('reset');
-
-                // Display new participant to table
-                var instance = JSON.parse(response["instance"]);
-                var fields = instance[0]["fields"];
-                var pk = instance[0]["pk"];
-                $("#example tbody").prepend(
-                   `<tr class="post-${pk}">
-                    <td class="text-center sorting_1">${fields["words"]||""}</td>
-                    <td class="text-center sorting_1">
-                        {% csrf_token %}
-                          <button type="button"  class="delete_button" data-id='${pk}' > Удалить  </button>
-                        </td>
-                    </tr>`
-                )
-            },     
-         
-            error: function (response) {
-                // alert non successful response
-                alert(response["responseJSON"]["error"]);
-            }
-        });
-    });
-
-    $("body").on("click",".delete_button",function(u){
-            u.preventDefault();
-            var id = $(this).data('id');
-            $.ajax({
-                url: "delete/"+id,
-                type: 'DELETE',
-                dataType: 'json',
-                headers: {
-                    "X-CSRFTOKEN": "{{ csrf_token }}"
-                },
-                data: { id : id },
-                beforeSend: function(xhr) {
-                    xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}' );
-                },
-                success: function(response){
-                    $("#example .post-" + id).remove();
-                }
-            });
-        });
-
-
-    $("#brand-form").submit(function (z) {
-        // preventing default actions
-        z.preventDefault();
-        // serialize the data for sending the form data.
-        var serializedData = $(this).serialize();
-        // Ajax Call
-        $.ajax({
-            type: 'POST',
-            url: "{% url 'upload' %}",
-            data: serializedData,
-			// handle a successful response
-            success: function (response) {
-                // On successful, clear all form data
-                $("#brand-form").trigger('reset');
-
-                // Display new participant to table
-                var instance = JSON.parse(response["instance"]);
-                var fields = instance[0]["fields"];
-                var pk = instance[0]["pk"];
-                $("#example2 tbody").prepend(
-                   `<tr class="post-${pk}">
-                    <td class="text-center sorting_1">${fields["brand"]||""}</td>
-                    <td class="text-center sorting_1">
-                        {% csrf_token %}
-                            <button type="button"  class="delete_buttonbr" data-id="${pk}" > Удалить </button>
-                        </td>
-                    </tr>`
-                );
-            },     
-         
-            error: function (response) {
-                // alert non successful response
-                alert(response["responseJSON"]["error"]);
-            }
-        });
-    });
-
-    $("#price-forms").submit(function (a) {
-        // preventing default actions
-        a.preventDefault();
-        $form = $(this);
-        var formData = new FormData(this);
-        // serialize the data for sending the form data.
-        var serializedData = $(this).serialize();
-        // console.log(serializedData);
-        // Ajax Call
-        $.ajax({
-            type: 'POST',
-            url: "{% url 'upload' %}",
-            data: formData,
-            success: function (response) {
-                $("#price-forms").trigger('reset');
-                var instance = JSON.parse(response["instance"]);
-                var data = (response["data"]);
-                // console.log(data)
-                var fields = instance[0]["fields"];
-                var pk = instance[0]["pk"];
-                $("#example4 tbody").prepend(
-                   `<tr class="post-${data["pk"]}">
-                    <td class="text-center sorting_1">${fields["files"]||""}</td>
-                    <td class="text-center sorting_1">${data["oem_field"]||""}</td>
-                    <td class="text-center sorting_1">${data["brend_field"]||""}</td>
-                    <td class="text-center sorting_1">${data["name_field"]||""}</td>
-                    <td class="text-center sorting_1">${data["weight_field"]||""}</td>
-                    <td class="text-center sorting_1">${data["volume_field"]||""}</td>
-                    <td class="text-center sorting_1">
-                        {% csrf_token %}
-                            <button type="button"  class="delete_price" data-id="${data["pk"]}" > Удалить </button>
-                        </td>
-                    </tr>`
-                );
-                
-             },
-             error: function (response) {
-                console.log(response,'произошла ошибка')
-             },
-            cache: false,
-            contentType: false,
-            processData: false
-        });
-    });
-   
-    $("body").on("click",".delete_buttonbr",function(u){
-            u.preventDefault();
-            var id = $(this).data('id');
-            $.ajax({
-                url: "delbr/"+id,
-                type: 'DELETE',
-                dataType: 'json',
-                headers: {
-                    "X-CSRFTOKEN": "{{ csrf_token }}"
-                },
-                data: { id : id },
-                beforeSend: function(xhr) {
-                    xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}' );
-                },
-                success: function(response){
-                    $("#example2 .post-" + id).remove();
-                }
-            });
-        });
-
-
-        $("body").on("click",".delete_price",function(u){
-            u.preventDefault();
-            var id = $(this).data('id');
-            $.ajax({
-                url: "delpr/"+id,
-                type: 'DELETE',
-                dataType: 'json',
-                headers: {
-                    "X-CSRFTOKEN": "{{ csrf_token }}"
-                },
-                data: { id : id },
-                beforeSend: function(xhr) {
-                    xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}' );
-                },
-                success: function(response){
-                    $("#example4 .post-" + id).remove();
-                }
-            });
-        });
-
-    </script>
-
-{% endblock javascript %}   
-
-
 
 
 </body>
