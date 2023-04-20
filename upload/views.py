@@ -18,6 +18,7 @@ from django.views.generic.edit import FormView
 from .forms import FileFieldForm
 from pandas import read_sql_query
 from django.db.models import Q
+from django.conf import settings
 
 from django.views.generic import TemplateView, ListView
 
@@ -37,7 +38,7 @@ fields = {
 
 
 
-engine = create_engine('sqlite:///db.sqlite3')
+# engine = create_engine('sqlite:///db.sqlite3')
 sumdf = pd.DataFrame(index = fields.keys())
 
 def lowercomapre(list1,list2):
@@ -91,7 +92,7 @@ def converter(file):
 
     if extension == 'csv':
         df = pd.read_csv(file, on_bad_lines='skip',header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
-        # print('dfdfdf')
+        print(extension, 'разделитьель csv-',delimetr(file))
         # for title in df.columns.tolist():
             # df.rename(columns = {title:cleaner(title)}, inplace = True )
     if extension == 'xls':
@@ -104,7 +105,7 @@ def converter(file):
             df.rename(columns = {title:cleaner(title)}, inplace = True )
     if extension == 'txt':
         # df = pd.read_csv(file, encoding = "ANSI", on_bad_lines='skip', header=0, delim_whitespace=True,engine='python')sep='\s+'
-        # print('разделитьель-',delimetr(file))
+        print(extension, 'разделитьель txt-',delimetr(file))
         # df = pd.read_csv(file, on_bad_lines='skip', header=0, sep=delimetr(file))
         df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
         # df.to_csv('df.csv', index = None)
@@ -147,7 +148,13 @@ def bd_create(request):
     brands = Brands.objects.values_list('brand', flat=True).distinct()
     brands_low = list(map(str.lower, brands))
     files = AddFiles.objects.all()
-    BZ = AddFiles.objects.all()
+
+    user = settings.DATABASES['default']['USER']
+    password = settings.DATABASES['default']['PASSWORD']
+    database_name = settings.DATABASES['default']['NAME']
+
+    database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
+    engine = create_engine(database_url, echo=False)
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
 
@@ -159,7 +166,9 @@ def bd_create(request):
 
         #Получаем датафрейм      
         pricedf = converter("mediafiles/"+price) 
-            
+        
+        # print('test',pricedf)
+
         #Проверяем на монобренд
         if OneFile.is_mono:
             pricedf['brend_field'] = OneFile.brend_field
@@ -173,6 +182,8 @@ def bd_create(request):
         #Переименовываем заголовки фрейма на наши
         NewTitle = {v:k for k, v in arr.items()}
         pricedf.rename(columns = NewTitle, inplace = True )
+
+
 
         #Добавляем объем или вес
         if 'volume_field' in pricedf.columns.tolist():
@@ -196,8 +207,9 @@ def bd_create(request):
         else:
             pricedf['volume_field'] = pricedf['volume_field'].str.replace(',', '.')
 
+
  
-        #оставляем если есть хотябы одно значение веса
+        #оставляем если есть хотябы одно значение веса или объема
         pricedfBDField = pricedf[list(arr.keys())]
         WeightVolumeFilter = pricedfBDField[(pricedfBDField['weight_field'].astype(float) > 0) | (pricedfBDField['volume_field'].astype(float) > 0)]
  
@@ -218,6 +230,8 @@ def bd_create(request):
         # фильтруем по брендам и стоп словам
         BrandsFilter = NameBrendFilter[NameBrendFilter['brend_field'].isin(brands_low)] 
         WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
+
+        # print(WordsFilter)
 
         DataFrames.append(WordsFilter)
 
@@ -245,7 +259,7 @@ def bd_create(request):
     dub_oem_name = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
 
     if len(dub_oem_name)  == 0:
-        result.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
+        result.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 1000, method='multi', index=True, index_label='id')
         result.to_csv('df.csv', index = False)
     else:
 
@@ -286,7 +300,7 @@ def bd_create(request):
         pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
 
         finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
-        finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 10000, index=True, index_label='id')
+        finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 5000, method='multi', index=True, index_label='id')
         finalDF.to_csv('df.csv', index = False)
 
 
@@ -310,6 +324,13 @@ def brands_create(request):
     form = BrandsForm(request.POST, request.FILES)
     brands = list(Brands.objects.values_list('brand', flat=True).distinct())
     brands_old = pd.DataFrame(brands)
+
+    user = settings.DATABASES['default']['USER']
+    password = settings.DATABASES['default']['PASSWORD']
+    database_name = settings.DATABASES['default']['NAME']
+
+    database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
+    engine = create_engine(database_url, echo=False)
 
     if request.method == "POST":
         if form.is_valid():
