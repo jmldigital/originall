@@ -21,6 +21,8 @@ from django.db.models import Q
 from django.conf import settings
 
 from django.views.generic import TemplateView, ListView
+from dask import dataframe as df1
+import time
 
 # import pandasql
 # import pysqldf
@@ -80,6 +82,24 @@ def delimetr(file):
         # file.seek(0)
     return delim
 
+def heders(file,codir,delim):
+    arr={}
+    header_list = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = codir, sep=delim ,encoding_errors='ignore', dtype=str)
+    for key in fields.keys():
+        result=lowercomapre(fields[key],header_list)
+        arr[key] = result
+    
+    for key in arr.copy():
+        if not arr[key]:
+            arr.pop(key)
+    # 
+    #Переименовываем заголовки фрейма на наши
+    NewTitle = {v:k for k, v in arr.items()}
+
+    return NewTitle
+
+
+
 def converter(file):
 
     try:
@@ -89,30 +109,50 @@ def converter(file):
 
     df = ''
     # print(extension)
+    # lambda x: x.upper() in ['AAA', 'BBB', 'DDD']
 
-    if extension == 'csv':
-        df = pd.read_csv(file, on_bad_lines='skip',header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
-        print(extension, 'разделитьель csv-',delimetr(file))
-        # for title in df.columns.tolist():
-            # df.rename(columns = {title:cleaner(title)}, inplace = True )
     if extension == 'xls':
-        df = pd.read_excel(file)
+        df = pd.read_excel(file,dtype = str)
         for title in df.columns.tolist():
-            df.rename(columns = {title:cleaner(title)}, inplace = True )
+            df.rename(columns = {title:cleaner(title)}, inplace = True, )
     if extension == 'xlsx':
-        df =pd.read_excel(file, engine='openpyxl')
+        df =pd.read_excel(file, engine='openpyxl',dtype = str)
         for title in df.columns.tolist():
-            df.rename(columns = {title:cleaner(title)}, inplace = True )
-    if extension == 'txt':
-        # df = pd.read_csv(file, encoding = "ANSI", on_bad_lines='skip', header=0, delim_whitespace=True,engine='python')sep='\s+'
-        print(extension, 'разделитьель txt-',delimetr(file))
-        # df = pd.read_csv(file, on_bad_lines='skip', header=0, sep=delimetr(file))
-        df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file), encoding_errors='ignore')
+            df.rename(columns = {title:cleaner(title)}, inplace = True, )
+    if (extension == 'txt') or (extension == 'csv'):  
+
+        # try:
+        #     df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"utf-8",delimetr(file)).keys())
+        #     df.rename(columns = heders(file,"utf-8",delimetr(file)), inplace = True )
+        # except:
+        #     df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "cp1252", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"cp1252",delimetr(file)).keys())
+        #     df.rename(columns = heders(file,"cp1252",delimetr(file)), inplace = True )
+
+        try:
+            # print('dask',heders(file,"utf-8",delimetr(file)))
+            s_time_dask = time.time()
+            df = df1.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"utf-8",delimetr(file)).keys(),blocksize=25e6)
+            df = df.compute()
+            e_time_dask = time.time()
+            print("Read with dask: ", (e_time_dask-s_time_dask), "seconds")
+            df.rename(columns = heders(file,"utf-8",delimetr(file)), inplace = True )
+
+        except:
+            s_time_dask = time.time()
+            # print('dask',heders(file,"cp1252",delimetr(file)))
+            df = df1.read_csv(file, on_bad_lines='skip', header=0, encoding = "cp1252", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"cp1252",delimetr(file)).keys(),blocksize=25e6)
+            e_time_dask = time.time()
+            print("Read with dask: ", (e_time_dask-s_time_dask), "seconds")
+            df = df.compute()
+            
+            df.rename(columns = heders(file,"cp1252",delimetr(file)), inplace = True )
+
         # df.to_csv('df.csv', index = None)
 
         # for title in df.columns.tolist():
         #     df.rename(columns = {title:cleaner(title)}, inplace = True )
 
+    # print(headders)
     return df   
 
 
@@ -140,8 +180,8 @@ def brands_delete(request, id=None):
     return JsonResponse({'success': True, 'message': 'Delete','id':id})   
 
 
-
 def bd_create(request):   
+
     # BD = OriginallBD.objects.all()
     words = StopWords.objects.values_list('words', flat=True).distinct()
     words_up=list(map(str.upper, words))
@@ -159,31 +199,19 @@ def bd_create(request):
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
 
     DataFrames = []
-
+    
     for price in prices:
         OneFile = AddFiles.objects.get(files=price)
         arr={}
 
         #Получаем датафрейм      
         pricedf = converter("mediafiles/"+price) 
-        
+        # print('информация',type(pricedf['VolumeKG'][1]))
         # print('test',pricedf)
 
         #Проверяем на монобренд
         if OneFile.is_mono:
             pricedf['brend_field'] = OneFile.brend_field
-   
-        #Проверяем какие поля из прайса есть в наших
-        tilte = pricedf.columns.tolist()
-        for key in fields.keys():
-            result=lowercomapre(fields[key],tilte)
-            arr[key] = result
-
-        #Переименовываем заголовки фрейма на наши
-        NewTitle = {v:k for k, v in arr.items()}
-        pricedf.rename(columns = NewTitle, inplace = True )
-
-
 
         #Добавляем объем или вес
         if 'volume_field' in pricedf.columns.tolist():
@@ -196,7 +224,7 @@ def bd_create(request):
         else:
             pricedf['weight_field'] = '0'
 
-         #Меняем запятые на точки в дробных 
+         #Меняем запятые на точки в дробных и конвертим в float
         if (pricedf['weight_field'].dtype == np.float64 or pricedf['weight_field'].dtype == np.int64):
             pass
         else:
@@ -207,28 +235,22 @@ def bd_create(request):
         else:
             pricedf['volume_field'] = pricedf['volume_field'].str.replace(',', '.')
 
-
  
         #оставляем если есть хотябы одно значение веса или объема
-        pricedfBDField = pricedf[list(arr.keys())]
-        WeightVolumeFilter = pricedfBDField[(pricedfBDField['weight_field'].astype(float) > 0) | (pricedfBDField['volume_field'].astype(float) > 0)]
+        WeightVolumeFilter = pricedf[(pricedf['weight_field'].astype(float) > 0) | (pricedf['volume_field'].astype(float) > 0)]
  
 
-        #Убираем пустые бренды и названия
-        NameFilter = WeightVolumeFilter.name_field.notnull()
-        BrandFilter = WeightVolumeFilter.brend_field.notnull()
 
-        WeightVolumeFilter = WeightVolumeFilter[NameFilter]
-        NameBrendFilter = WeightVolumeFilter[BrandFilter]
-
+        #убираем пустые имена и бренды
+        WeightVolumeFilter.dropna(subset = ['name_field','brend_field'], inplace = True)
          
         # убираем регистры
-        NameBrendFilter['brend_field'] = NameBrendFilter['brend_field'].str.lower()
-        NameBrendFilter['name_field'] = NameBrendFilter['name_field'].str.upper()
+        WeightVolumeFilter['brend_field'] = WeightVolumeFilter['brend_field'].str.lower()
+        WeightVolumeFilter['name_field'] = WeightVolumeFilter['name_field'].str.upper()
          
 
         # фильтруем по брендам и стоп словам
-        BrandsFilter = NameBrendFilter[NameBrendFilter['brend_field'].isin(brands_low)] 
+        BrandsFilter = WeightVolumeFilter[WeightVolumeFilter['brend_field'].isin(brands_low)] 
         WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
 
         # print(WordsFilter)
@@ -300,8 +322,10 @@ def bd_create(request):
         pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
 
         finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
+        
         finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 5000, method='multi', index=True, index_label='id')
-        finalDF.to_csv('df.csv', index = False)
+        # finalDF.to_csv('df.csv', index = False)
+        # print('exitttttt',finalDF)
 
 
     render(request, "search_results.html")
@@ -453,12 +477,12 @@ def image_upload(request):
     if request.method == "GET": 
         query = request.GET.get('q', None)
         if query:
-            print('yes',query)
+            # print('yes',query)
             object_list = OriginallBD.objects.filter(
                 Q(brend_field__icontains=query) | Q(name_field__icontains=query)
             )
         else:
-            print('none',query)
+            # print('none',query)
             object_list = OriginallBD.objects.filter(pk=1)    
 
     context ={'BD':object_list}
