@@ -23,6 +23,7 @@ from django.conf import settings
 from django.views.generic import TemplateView, ListView
 from dask import dataframe as df1
 import time
+from dask.diagnostics import ProgressBar,ResourceProfiler
 
 # import pandasql
 # import pysqldf
@@ -38,7 +39,7 @@ fields = {
 'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
 'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
-
+pd.options.mode.chained_assignment
 
 # engine = create_engine('sqlite:///db.sqlite3')
 sumdf = pd.DataFrame(index = fields.keys())
@@ -108,6 +109,7 @@ def converter(file):
         extension = cleaner(os.path.splitext(file.name)[1])
 
     df = ''
+    filtered_chunk_list=[]
     # print(extension)
     # lambda x: x.upper() in ['AAA', 'BBB', 'DDD']
 
@@ -129,22 +131,37 @@ def converter(file):
         #     df.rename(columns = heders(file,"cp1252",delimetr(file)), inplace = True )
 
         try:
-            # print('dask',heders(file,"utf-8",delimetr(file)))
-            s_time_dask = time.time()
-            df = df1.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"utf-8",delimetr(file)).keys(),blocksize=25e6)
+            with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
+                s_time_dask = time.time()
+                # df = df1.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"utf-8",delimetr(file)).keys(),blocksize=25e6)
+                df = df1.read_csv(file,encoding = "utf-8",on_bad_lines='skip',encoding_errors='ignore',header=0, dtype=str,usecols=heders(file,"cp1252",delimetr(file)).keys(),sep=delimetr(file))
+                e_time_dask = time.time()
+                print(df.compute())
+                print("Read with dask: utf-8 ", (e_time_dask-s_time_dask), "seconds")
+            rprof.visualize()
             df = df.compute()
-            e_time_dask = time.time()
-            print("Read with dask: ", (e_time_dask-s_time_dask), "seconds")
             df.rename(columns = heders(file,"utf-8",delimetr(file)), inplace = True )
 
         except:
-            s_time_dask = time.time()
-            # print('dask',heders(file,"cp1252",delimetr(file)))
-            df = df1.read_csv(file, on_bad_lines='skip', header=0, encoding = "cp1252", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"cp1252",delimetr(file)).keys(),blocksize=25e6)
-            e_time_dask = time.time()
-            print("Read with dask: ", (e_time_dask-s_time_dask), "seconds")
-            df = df.compute()
-            
+            with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
+
+                s_time_dask = time.time()
+                # print('dask',heders(file,"cp1252",delimetr(file)))
+                # df = df1.read_csv(file,encoding = "cp1252",on_bad_lines='skip',encoding_errors='ignore',header=0, sep=delimetr(file), usecols=heders(file,"cp1252",delimetr(file)).keys(),dtype=str)
+   
+
+                for chunk in pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "cp1252", sep=delimetr(file), encoding_errors='ignore', dtype=str, usecols=heders(file,"cp1252",delimetr(file)).keys(), chunksize=1E+6):
+                    filtered_chunk=chunk
+                    filtered_chunk_list.append(filtered_chunk)
+                
+                df = pd.concat(filtered_chunk_list)
+                      
+                e_time_dask = time.time()
+                # print(df.compute())
+                print("Read with dask: cp1252", (e_time_dask-s_time_dask), "seconds")
+            rprof.visualize()
+
+            # df = df.compute()          
             df.rename(columns = heders(file,"cp1252",delimetr(file)), inplace = True )
 
         # df.to_csv('df.csv', index = None)
@@ -208,7 +225,7 @@ def bd_create(request):
         pricedf = converter("mediafiles/"+price) 
         # print('информация',type(pricedf['VolumeKG'][1]))
         # print('test',pricedf)
-
+        s_time_dask = time.time()
         #Проверяем на монобренд
         if OneFile.is_mono:
             pricedf['brend_field'] = OneFile.brend_field
@@ -234,20 +251,21 @@ def bd_create(request):
             pass
         else:
             pricedf['volume_field'] = pricedf['volume_field'].str.replace(',', '.')
-
  
         #оставляем если есть хотябы одно значение веса или объема
         WeightVolumeFilter = pricedf[(pricedf['weight_field'].astype(float) > 0) | (pricedf['volume_field'].astype(float) > 0)]
  
 
-
         #убираем пустые имена и бренды
         WeightVolumeFilter.dropna(subset = ['name_field','brend_field'], inplace = True)
          
         # убираем регистры
-        WeightVolumeFilter['brend_field'] = WeightVolumeFilter['brend_field'].str.lower()
-        WeightVolumeFilter['name_field'] = WeightVolumeFilter['name_field'].str.upper()
-         
+        WeightVolumeFilter['brend_field'] = WeightVolumeFilter.brend_field.str.lower()
+        WeightVolumeFilter['name_field'] = WeightVolumeFilter.name_field.str.upper()
+        # WeightVolumeFilter['brend_field'].apply(lambda x: x.lower())
+        # WeightVolumeFilter['name_field'].apply(lambda x: x.upper())
+
+        # print(WeightVolumeFilter)
 
         # фильтруем по брендам и стоп словам
         BrandsFilter = WeightVolumeFilter[WeightVolumeFilter['brend_field'].isin(brands_low)] 
@@ -322,11 +340,15 @@ def bd_create(request):
         pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
 
         finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
-        
-        finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 5000, method='multi', index=True, index_label='id')
-        # finalDF.to_csv('df.csv', index = False)
-        # print('exitttttt',finalDF)
 
+
+
+        finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 1000000,  index=True, index_label='id')
+
+        finalDF.to_csv('df.csv', index = False)
+        e_time_dask = time.time()
+        print(finalDF)
+        print("calculate df ", (e_time_dask-s_time_dask), "seconds")
 
     render(request, "search_results.html")
     return redirect(request.META['HTTP_REFERER'])
