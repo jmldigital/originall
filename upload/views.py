@@ -24,11 +24,25 @@ from django.views.generic import TemplateView, ListView
 from dask import dataframe as df1
 import time
 from dask.diagnostics import ProgressBar,ResourceProfiler
+from memory_profiler import profile
+from pandas.api.types import union_categoricals
+# from pyheat import PyHeat
+from line_profiler import LineProfiler
 
 # import pandasql
 # import pysqldf
 
 #python manage.py migrate --run-syncdb
+
+pd.options.mode.chained_assignment = None
+
+def get_key(val,dic):
+
+    for key, value in dic.items():
+        if val == value:
+            return key
+ 
+    return "key doesn't exist"
 
 fields = {
 'oem_field':['Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
@@ -39,10 +53,33 @@ fields = {
 'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
 'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
-pd.options.mode.chained_assignment
+words = StopWords.objects.values_list('words', flat=True).distinct()
+words_up=list(map(str.upper, words))
+brands = Brands.objects.values_list('brand', flat=True).distinct()
+brands_low = list(map(str.lower, brands))
+brands_up = list(map(str.upper, brands))
 
 # engine = create_engine('sqlite:///db.sqlite3')
 sumdf = pd.DataFrame(index = fields.keys())
+
+
+def concatenate(dfs):
+    """Concatenate while preserving categorical columns.
+    NB: We change the categories in-place for the input dataframes"""
+    # Iterate on categorical columns common to all dfs
+    for col in set.intersection(
+        *[
+            set(df.select_dtypes(include='category').columns)
+            for df in dfs
+        ]
+    ):
+        # Generate the union category across dfs for this column
+        uc = union_categoricals([df[col] for df in dfs])
+        # Change to union category for all dataframes
+        for df in dfs:
+            df[col] = pd.Categorical(df[col].values, categories=uc.categories)
+    return pd.concat(dfs)
+
 
 def lowercomapre(list1,list2):
     dif=''
@@ -76,7 +113,7 @@ def delimetr(file):
     match = re.search(r'(\W+)', first_line)
     if match.group(0) =='\t':
         delim = '\t'
-        # print("разделитель таб",delim)
+        print("разделитель таб",delim)
     else:
         delim =match.group(0)
         # print("разделитель:",delim) 
@@ -85,7 +122,12 @@ def delimetr(file):
 
 def heders(file,codir,delim):
     arr={}
-    header_list = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = codir, sep=delim ,encoding_errors='ignore', dtype=str)
+
+    with open(file, 'r') as f:
+        first_line = next(f).strip()
+
+    header_list = first_line.split(delim)
+    # header_list = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = codir, sep=delim ,encoding_errors='ignore', dtype=str)
     for key in fields.keys():
         result=lowercomapre(fields[key],header_list)
         arr[key] = result
@@ -93,15 +135,27 @@ def heders(file,codir,delim):
     for key in arr.copy():
         if not arr[key]:
             arr.pop(key)
-    # 
+
     #Переименовываем заголовки фрейма на наши
     NewTitle = {v:k for k, v in arr.items()}
-
+    # print(NewTitle)
     return NewTitle
 
 
 
 def converter(file):
+
+    key = file.split('/')[1]
+    OneFile = AddFiles.objects.get(files=key)
+
+    dic=heders(file,"utf-8",delimetr(file))
+    dtypes ={get_key('brend_field',dic):'category',
+            get_key('name_field',dic):'category',
+            get_key('oem_field',dic):'object'}
+    
+    dtypes_mono ={
+        get_key('name_field',dic):'category',
+        get_key('oem_field',dic):'object'}
 
     try:
         extension = file.split(".")[1]
@@ -110,8 +164,7 @@ def converter(file):
 
     df = ''
     filtered_chunk_list=[]
-    # print(extension)
-    # lambda x: x.upper() in ['AAA', 'BBB', 'DDD']
+
 
     if extension == 'xls':
         df = pd.read_excel(file,dtype = str)
@@ -123,54 +176,53 @@ def converter(file):
             df.rename(columns = {title:cleaner(title)}, inplace = True, )
     if (extension == 'txt') or (extension == 'csv'):  
 
-        # try:
-        #     df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"utf-8",delimetr(file)).keys())
-        #     df.rename(columns = heders(file,"utf-8",delimetr(file)), inplace = True )
-        # except:
-        #     df = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "cp1252", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"cp1252",delimetr(file)).keys())
-        #     df.rename(columns = heders(file,"cp1252",delimetr(file)), inplace = True )
+        with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
+            s_time_dask = time.time()
 
-        try:
-            with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
-                s_time_dask = time.time()
-                # df = df1.read_csv(file, on_bad_lines='skip', header=0, encoding = "utf-8", sep=delimetr(file) ,encoding_errors='ignore',dtype=str, usecols=heders(file,"utf-8",delimetr(file)).keys(),blocksize=25e6)
-                df = df1.read_csv(file,encoding = "utf-8",on_bad_lines='skip',encoding_errors='ignore',header=0, dtype=str,usecols=heders(file,"cp1252",delimetr(file)).keys(),sep=delimetr(file))
-                e_time_dask = time.time()
-                print(df.compute())
-                print("Read with dask: utf-8 ", (e_time_dask-s_time_dask), "seconds")
-            rprof.visualize()
-            df = df.compute()
-            df.rename(columns = heders(file,"utf-8",delimetr(file)), inplace = True )
+            if OneFile.is_mono:
+                raw_data = df1.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes_mono, sep=delimetr(file))
+                raw_data['brend_field'] = OneFile.brend_field
+                raw_data['brend_field'] = raw_data['brend_field'].astype('category')
+            else:
+                raw_data = df1.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes, sep=delimetr(file))
 
-        except:
-            with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
+            tt=raw_data.rename(columns = dic)
+            ts= tt.dropna(subset=['name_field', "brend_field"])
 
-                s_time_dask = time.time()
-                # print('dask',heders(file,"cp1252",delimetr(file)))
-                # df = df1.read_csv(file,encoding = "cp1252",on_bad_lines='skip',encoding_errors='ignore',header=0, sep=delimetr(file), usecols=heders(file,"cp1252",delimetr(file)).keys(),dtype=str)
-   
+            if 'volume_field' in ts.columns.tolist():
+                pass
+            else:
+                ts['volume_field'] = 0
 
-                for chunk in pd.read_csv(file, on_bad_lines='skip', header=0, encoding = "cp1252", sep=delimetr(file), encoding_errors='ignore', dtype=str, usecols=heders(file,"cp1252",delimetr(file)).keys(), chunksize=1E+6):
-                    filtered_chunk=chunk
-                    filtered_chunk_list.append(filtered_chunk)
-                
-                df = pd.concat(filtered_chunk_list)
-                      
-                e_time_dask = time.time()
-                # print(df.compute())
-                print("Read with dask: cp1252", (e_time_dask-s_time_dask), "seconds")
-            rprof.visualize()
+            if 'weight_field' in ts.columns.tolist():
+                pass
+            else:
+                ts['weight_field'] = 0
 
-            # df = df.compute()          
-            df.rename(columns = heders(file,"cp1252",delimetr(file)), inplace = True )
+            if (ts['weight_field'].dtype == np.float64 or ts['weight_field'].dtype == np.int64):
+                pass
+            else:
+                ts['weight_field'] = ts['weight_field'].str.replace(',', '.').astype('float64')
 
-        # df.to_csv('df.csv', index = None)
+            if (ts['volume_field'].dtype == np.float64 or ts['volume_field'].dtype == np.int64):
+                pass
+            else:
+                ts['volume_field'] = ts['volume_field'].str.replace(',', '.').astype('float64')
 
-        # for title in df.columns.tolist():
-        #     df.rename(columns = {title:cleaner(title)}, inplace = True )
+            new = ts.loc[((ts["weight_field"] != 0) | (ts["volume_field"] != 0)) & (ts["brend_field"].str.lower().isin(brands_low))].compute()
+            new['brend_field'] = new['brend_field'].str.lower()
+            # print(new.info())
 
+            # ddf = raw_data.to_parquet("mediafiles/park", engine="pyarrow", schema=None)
+            # new=df1.read_parquet('mediafiles/park' ).compute()
+
+            # WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
+            e_time_dask = time.time()
+
+            print("Read with dask: utf-8 ", (e_time_dask-s_time_dask), "seconds")
+        # rprof.visualize()
     # print(headders)
-    return df   
+    return new   
 
 
 
@@ -196,14 +248,22 @@ def brands_delete(request, id=None):
     brand.delete()
     return JsonResponse({'success': True, 'message': 'Delete','id':id})   
 
+import atexit
+lp = LineProfiler()
+atexit.register(lp.print_stats)
 
+
+
+# ph = PyHeat('D:/django-on-docker/app/upload/views.py')
+fp = open("report.log", "w+")
+# @profile(stream = fp)
+@lp
 def bd_create(request):   
-
+    # ph.create_heatmap()
+    s_time_dask = time.time()
     # BD = OriginallBD.objects.all()
-    words = StopWords.objects.values_list('words', flat=True).distinct()
-    words_up=list(map(str.upper, words))
-    brands = Brands.objects.values_list('brand', flat=True).distinct()
-    brands_low = list(map(str.lower, brands))
+    start_time = time.time()
+
     files = AddFiles.objects.all()
 
     user = settings.DATABASES['default']['USER']
@@ -218,138 +278,104 @@ def bd_create(request):
     DataFrames = []
     
     for price in prices:
-        OneFile = AddFiles.objects.get(files=price)
-        arr={}
-
         #Получаем датафрейм      
         pricedf = converter("mediafiles/"+price) 
-        # print('информация',type(pricedf['VolumeKG'][1]))
-        # print('test',pricedf)
-        s_time_dask = time.time()
-        #Проверяем на монобренд
-        if OneFile.is_mono:
-            pricedf['brend_field'] = OneFile.brend_field
+        # print('before',pricedf.info())
+        DataFrames.append(pricedf)
 
-        #Добавляем объем или вес
-        if 'volume_field' in pricedf.columns.tolist():
-            pass
-        else:
-            pricedf['volume_field'] = '0'
+    result = concatenate(DataFrames)
+    # result = pd.concat(DataFrames,ignore_index=True)
 
-        if 'weight_field' in pricedf.columns.tolist():
-            pass
-        else:
-            pricedf['weight_field'] = '0'
+    # print('after',result.info())
 
-         #Меняем запятые на точки в дробных и конвертим в float
-        if (pricedf['weight_field'].dtype == np.float64 or pricedf['weight_field'].dtype == np.int64):
-            pass
-        else:
-            pricedf['weight_field'] = pricedf['weight_field'].str.replace(',', '.')
-
-        if (pricedf['volume_field'].dtype == np.float64 or pricedf['volume_field'].dtype == np.int64):
-            pass
-        else:
-            pricedf['volume_field'] = pricedf['volume_field'].str.replace(',', '.')
- 
-        #оставляем если есть хотябы одно значение веса или объема
-        WeightVolumeFilter = pricedf[(pricedf['weight_field'].astype(float) > 0) | (pricedf['volume_field'].astype(float) > 0)]
- 
-
-        #убираем пустые имена и бренды
-        WeightVolumeFilter.dropna(subset = ['name_field','brend_field'], inplace = True)
-         
-        # убираем регистры
-        WeightVolumeFilter['brend_field'] = WeightVolumeFilter.brend_field.str.lower()
-        WeightVolumeFilter['name_field'] = WeightVolumeFilter.name_field.str.upper()
-        # WeightVolumeFilter['brend_field'].apply(lambda x: x.lower())
-        # WeightVolumeFilter['name_field'].apply(lambda x: x.upper())
-
-        # print(WeightVolumeFilter)
-
-        # фильтруем по брендам и стоп словам
-        BrandsFilter = WeightVolumeFilter[WeightVolumeFilter['brend_field'].isin(brands_low)] 
-        WordsFilter = BrandsFilter[~BrandsFilter['name_field'].isin(words_up)] 
-
-        # print(WordsFilter)
-
-        DataFrames.append(WordsFilter)
-
-    result = pd.concat(DataFrames,ignore_index=True)
-
-    result['weight_field'] = result.weight_field.astype(float) 
-    result['volume_field'] = result.volume_field.astype(float)
-
-    # print(result.info())
-
-    # Получаем все дубликаты в отдлеьный фрейм
-    # no_dub_columns = result.T.drop_duplicates().T
-
-    # Убираем все дубликаты из общего фрейма
+    # Убираем полные дубликаты из общего фрейма
     result.drop_duplicates(inplace=True)
     
-    # Получаем все несовпадения по оем
+    # Получаем все неполные дубликаты по оем
     dub_oem = result[(result[['oem_field']].duplicated(keep=False))]
-    dub_oem.to_csv('df_duble.csv', index = False)
+    # dub_oem.to_csv('df_duble.csv', index = False)
 
     # Вынимаем из фрйма оставшиеся совпадения по оем
     result.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
+    # result.to_csv('result.csv', index = False)
 
     # Получаем все дубликаты с полностью заполненными полями
-    dub_oem_name = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
+    dub_oem_name_weight_vol = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
+    dub_oem_name_weight_vol.drop_duplicates(['oem_field','brend_field'], inplace=True)
+    # dub_oem_name_weight_vol.to_csv('dub_oem_name_weight_vol.csv', index = False)
 
-    if len(dub_oem_name)  == 0:
-        result.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 1000, method='multi', index=True, index_label='id')
-        result.to_csv('df.csv', index = False)
-    else:
+    # Получаем все дубликаты с одним из заполненных полей
+    dub_oem_null = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & ((dub_oem['weight_field'] == 0) | (dub_oem['volume_field'] == 0)) ]
+    # dub_oem_name.drop_duplicates(['oem_field','name_field'], inplace=True, keep='first')
+    # dub_oem_null.to_csv('dub_oem_null.csv', index = False)
 
-        # ПЕрвый куско очищенной итерации со всеми полями
-        ful_oem_field = dub_oem_name.drop_duplicates(subset = 'oem_field')
+    # Мерджим между собой
+    group_null_merdge = dub_oem_null.groupby(by=['oem_field','brend_field'],as_index=False).agg({'name_field': 'first','weight_field': 'max','volume_field': 'max','brend_field': 'first'})
+    # group_null_merdge.to_csv('group_null_merdge.csv', index = False)
+    
+    # Соединяем смерженные с полными полями и оставляем максимальные
+    finalDF = pd.concat([group_null_merdge, dub_oem_name_weight_vol],ignore_index=True)
+    finalDF_ALL = finalDF.groupby(by=['oem_field','brend_field'],as_index=False).agg({'name_field': 'first','weight_field': 'max','volume_field': 'max','brend_field': 'first'})
+
+    FULL = pd.concat([finalDF_ALL, result],ignore_index=True)
+
+    # проверяем если объем меньше массы
+    FULL.loc[FULL['volume_field'] < FULL['weight_field'], 'volume_field'] = 0
+    FULL.to_csv('FULL.csv', index = False)
+
+    # if len(dub_oem_name)  == 0:
+    #     result.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 1000, method='multi', index=True, index_label='id')
+    #     result.to_csv('df.csv', index = False)
+    # else:
+
+        # ПЕрвый куско очищенной итерации с ненулевым весом и объемом
+        # ful_oem_field = dub_oem_name.drop_duplicates(subset = ['oem_field','brend_field'])
+        # ful_oem_field.to_csv('ful_oem_field.csv', index = False)
 
         # Датафрейм без куска с полными повторениями
-        FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
+        # FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
+        # FULL_cleare.to_csv('FULL_cleare.csv', index = False)
 
         # Оставляем максимальные значения по весу из дубликатов 
-        max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False,as_index=True).apply(lambda x: x.loc[x.weight_field.idxmax()])
-
+        # max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False, as_index=False,observed=True,sort=False).apply(lambda x: x.loc[x.weight_field.idxmax()])
+        # max_oem_weight = FULL_cleare.groupby(by=['oem_field'],as_index=False).agg({'name_field': 'first','weight_field': 'max','volume_field': 'max','brend_field': 'first'})
+        # max_oem_weight.to_csv('df_duble_max-2.csv', index = False)
+        
         # Получаем группировку с максимальные значения по объему из дубликатов 
-        max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
-
+        # max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False,observed=True,sort=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
+         # max_oem_weight.to_csv('df_duble_max-volume_max.csv', index = False)
+        
         # Оставляем максимальные значения по объему из дубликатов
-        max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['volume_field'] != 0 ])
+        # max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False,observed=True,sort=False).apply(lambda x: x[x['volume_field'] != 0 ])
 
     # ---------------------! полные поля+максимальыне по весу, плюс не нулевые по объему--------------------------------
-        full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True, sort=False)
 
-        # res = full.groupby(['oem_field'],group_keys=False,as_index=False).apply(lambda x: x[x['weight_field'] == 0 ]['volume_field'].sum())
-        #df.groupby(['continent']).apply(lambda x: x[x['Member_G20'] == 'Y' ]['GDP(trillion)'].sum())
-        # res = full[dub_oem[['oem_field']].duplicated(keep=False)]
+        # full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True)
 
     # --------------------! смердженные по весу и объему дубликаты---------------------------
-        res = full[(full[['oem_field']].duplicated(keep=False))]
+        # res = full[(full[['oem_field']].duplicated(keep=False))]
         # res_sum = res.groupby('oem_field').sum().reset_index() - суммирует так же и другие поля
 
-        res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
-        res_sum = res.drop_duplicates(subset=['oem_field'])
+        # res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
+        # res_sum = res.drop_duplicates(subset=['oem_field'])
 
     # ---------------------! кусок без смрджененых дубликатов--------------------------------
-        full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
-        # print(full)
+        # full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
+
     
-    # --------------------! полнсотью очищенный и смердженный кусок кусок---------------------------   
-        pure_filtered_part = pd.concat([full, res_sum ], ignore_index=True, sort=False) 
+    # --------------------! полнсотью очищенный и смердженный кусок ---------------------------          
+        
+        # finalDF = pd.concat([full, res_sum, result],ignore_index=True)
 
-        finalDF = pd.concat([pure_filtered_part, result ], ignore_index=True, sort=False) 
+        # print(finalDF.info())
 
+    FULL.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine,   index=True, index_label='id')
 
-
-        finalDF.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 1000000,  index=True, index_label='id')
-
-        finalDF.to_csv('df.csv', index = False)
-        e_time_dask = time.time()
-        print(finalDF)
-        print("calculate df ", (e_time_dask-s_time_dask), "seconds")
-
+    # finalDF.to_csv('df2.csv', index = False)
+    e_time_dask = time.time()
+    # print(result)
+    print("calculate df ", (e_time_dask-s_time_dask), "seconds")
+    # ph.show_heatmap('image_file.png')
     render(request, "search_results.html")
     return redirect(request.META['HTTP_REFERER'])
 
@@ -523,9 +549,6 @@ def image_upload(request):
     }
           
     return render(request, "upload.html", context)
-
-
-
 
 
 
