@@ -126,7 +126,7 @@ $(document).ready(function() {
 
     </div>
 
-
+        <!--------- прайсы --------->
        <div id="progress-box" class="h-1 w-full bg-neutral-200 dark:bg-neutral-600 not-visible"></div>
 
   <div class="w-full mb-6 py-6  justify-between items-left  border-gray-200">
@@ -135,6 +135,8 @@ $(document).ready(function() {
             <tr>
                 <th>файлы</th>
                 <th>бренд</th>
+                <th>валюта</th>
+                <th></th>
                 <th></th>
             </tr>
         </thead>
@@ -142,12 +144,20 @@ $(document).ready(function() {
             {% for file in files %}
             <tr class="post-{{file.pk}}">
                 <td class="text-center"> {{ file.files }} </td>
-                <td class="text-center"> {{ file.brend_field }} </td>                
+                <td class="text-center"> {{ file.brend_field }} </td> 
+                <td class="text-center"> {{ file.currency_field }} </td>                
 
                 <td class="text-center">
                     {% csrf_token %}
                     <button type="button"  class="delete_price" data-id="{{ file.pk }}" > Удалить </button>
                 </td>
+
+                <td class="text-center">
+                    {% csrf_token %}
+                    <a href="{% url 'create-price' file.pk %}"> 
+                    <button type="button"  class="load_price" data-id="{{ file.pk }}" > Выгрузить </button></a>
+                </td>
+
             </tr>
         {% endfor %}
 
@@ -157,6 +167,8 @@ $(document).ready(function() {
                 <th>Всего {{ len }}</th> 
                 <th></th>  
                 <th></th>
+                <th></th>
+                <th></th>
 
 
             </tr>        
@@ -164,11 +176,14 @@ $(document).ready(function() {
     </table>
 </div>
 
+
 <form id="price-forms" enctype="multipart/form-data" >
     {%csrf_token%}
     
   {{ form_files.brend_field|as_crispy_field }}
+  {{ form_files.currency_field |as_crispy_field }}
   {{ form_files.files|as_crispy_field }}
+
   <button type="Submit" class=" bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white" name="btnform2"> Добавить прайс</button>
 </form>
 

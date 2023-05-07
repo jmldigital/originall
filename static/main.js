@@ -143,18 +143,22 @@
                 $("#price-forms").trigger('reset');
                 var instance = JSON.parse(response["instance"]);
                 var data = (response["data"]);
-                // console.log(data)
+                // console.log('fgfgfg',data)
                 var fields = instance[0]["fields"];
                 var pk = instance[0]["pk"];
                 $("#example4 tbody").prepend(
                    `<tr class="post-${data["pk"]}">
                     <td class="text-center sorting_1">${fields["files"]||""}</td>
                     <td class="text-center sorting_1">${data["brend_field"]||""}</td>
-
+                    <td class="text-center sorting_1">${data["currency_field"]||""}</td>
                     <td class="text-center sorting_1">
-                    <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_price.value}">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="">
+                            <button type="button"  class="load_price" data-id="${data["pk"]}" > Выгрзуить </button>
+                    </td>
+                    <td class="text-center sorting_1">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="">
                             <button type="button"  class="delete_price" data-id="${data["pk"]}" > Удалить </button>
-                        </td>
+                    </td>
                     </tr>`
                 );
                 
@@ -208,4 +212,28 @@
                 }
             });
         });
+
+        // $("body").on("click",".load_price",function(u){
+        //     u.preventDefault();
+        //     var id = $(this).data('id');
+        //     $.ajax({
+        //         url: "loadpr/"+id,
+        //         type: 'GET',
+        //         data: 'json',  
+        //         headers: {
+        //             "X-CSRFTOKEN": csrf_price.value
+        //         },
+        //         data: { id : id },
+        //         beforeSend: function(xhr) {
+        //             xhr.setRequestHeader("X-CSRFToken", csrf_price.value );
+        //         },
+        //         success: function(response){
+        //             console.log(response,'ВСЕ ХОРОШО, ПРАЙС ВЫГРУЖАЕТСЯ')
+        //         },
+        //         error: function (response) {
+        //             console.log(response,'произошла ошибка')
+        //          }
+        //     });
+        // });
+
     });

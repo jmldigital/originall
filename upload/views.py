@@ -2,14 +2,15 @@ from django.shortcuts import render
 from django.core.files.storage import FileSystemStorage
 import pandas as pd
 import numpy as np
-import os.path
+import os.path, shutil
+
 from mechanize import Browser
 import cgi
 from .forms import StopWordsForm, FilesForm,BrandsForm,FileFieldForm
 from .models import StopWords,AddFiles,Brands,OriginallBD
 from django.views import generic
 from django.shortcuts import render, redirect, reverse
-from django.http import HttpResponse
+from django.http import HttpResponse,Http404
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, text
 import re
 from django.http import JsonResponse
@@ -19,7 +20,6 @@ from .forms import FileFieldForm
 from pandas import read_sql_query
 from django.db.models import Q
 from django.conf import settings
-
 from django.views.generic import TemplateView, ListView
 from dask import dataframe as df1
 import time
@@ -28,6 +28,8 @@ from memory_profiler import profile
 from pandas.api.types import union_categoricals
 # from pyheat import PyHeat
 from line_profiler import LineProfiler
+import mimetypes
+import sqlite3
 
 # import pandasql
 # import pysqldf
@@ -46,20 +48,32 @@ def get_key(val,dic):
 
 fields = {
 'oem_field':['Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
-# 'price':['price','cost','preis','цена','стоимость'],
 'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field'],
 'name_field':['Название','detailname','titel','title','название','bezde'],
-# 'quantity':['volume','menge','quantity','кол-во','количество','min'],
 'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
 'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
-words = StopWords.objects.values_list('words', flat=True).distinct()
-words_up=list(map(str.upper, words))
-brands = Brands.objects.values_list('brand', flat=True).distinct()
-brands_low = list(map(str.lower, brands))
-brands_up = list(map(str.upper, brands))
+fields_price = {
+'oem_field':['Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
+'price_field':['price','cost','preis','цена','стоимость','DetailPrice'],
+'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field'],
+'name_field':['Название','detailname','titel','title','название','bezde'],
+'quantity_field':['volume','menge','quantity','кол-во','количество','min','PackQuantity'],
+'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
+'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
-# engine = create_engine('sqlite:///db.sqlite3')
+
+
+try:
+    words = StopWords.objects.values_list('words', flat=True).distinct()
+    words_up=list(map(str.upper, words))
+    brands = Brands.objects.values_list('brand', flat=True).distinct()
+    brands_low = list(map(str.lower, brands))
+    brands_up = list(map(str.upper, brands))
+except:
+    pass
+
+
 sumdf = pd.DataFrame(index = fields.keys())
 
 
@@ -113,21 +127,20 @@ def delimetr(file):
     match = re.search(r'(\W+)', first_line)
     if match.group(0) =='\t':
         delim = '\t'
-        print("разделитель таб",delim)
+        # print("разделитель таб",delim)
     else:
         delim =match.group(0)
         # print("разделитель:",delim) 
         # file.seek(0)
     return delim
 
-def heders(file,codir,delim):
+def heders(file,fields,delim):
     arr={}
 
     with open(file, 'r') as f:
         first_line = next(f).strip()
-
     header_list = first_line.split(delim)
-    # header_list = pd.read_csv(file, on_bad_lines='skip', header=0, encoding = codir, sep=delim ,encoding_errors='ignore', dtype=str)
+
     for key in fields.keys():
         result=lowercomapre(fields[key],header_list)
         arr[key] = result
@@ -142,30 +155,39 @@ def heders(file,codir,delim):
     return NewTitle
 
 
-
-def converter(file):
+def converter(file,dfcolumns):
 
     key = file.split('/')[1]
     OneFile = AddFiles.objects.get(files=key)
 
-    dic=heders(file,"utf-8",delimetr(file))
+    dic=heders(file,dfcolumns,delimetr(file))
+
+    # print(dic)
+
+    # dtypes_price ={get_key('brend_field',dic):'category',
+    #         get_key('name_field',dic):'category',
+    #         get_key('oem_field',dic):'object',
+    #         get_key('quantity_field',dic):'int64',
+    #         }
+
     dtypes ={get_key('brend_field',dic):'category',
             get_key('name_field',dic):'category',
-            get_key('oem_field',dic):'object'}
+            get_key('oem_field',dic):'object'
+            }
     
     dtypes_mono ={
         get_key('name_field',dic):'category',
-        get_key('oem_field',dic):'object'}
-
+        get_key('oem_field',dic):'object'
+  
+        }
+    
     try:
         extension = file.split(".")[1]
     except:
         extension = cleaner(os.path.splitext(file.name)[1])
 
     df = ''
-    filtered_chunk_list=[]
-
-
+ 
     if extension == 'xls':
         df = pd.read_excel(file,dtype = str)
         for title in df.columns.tolist():
@@ -209,7 +231,9 @@ def converter(file):
             else:
                 ts['volume_field'] = ts['volume_field'].str.replace(',', '.').astype('float64')
 
-            new = ts.loc[((ts["weight_field"] != 0) | (ts["volume_field"] != 0)) & (ts["brend_field"].str.lower().isin(brands_low))].compute()
+            # new = ts.loc[((ts["weight_field"] != 0) | (ts["volume_field"] != 0)) & (ts["brend_field"].str.lower().isin(brands_low))].compute()
+            new = ts.loc[ts["brend_field"].str.lower().isin(brands_low)].compute()
+
             new['brend_field'] = new['brend_field'].str.lower()
             # print(new.info())
 
@@ -225,10 +249,141 @@ def converter(file):
     return new   
 
 
+# def price_load(request, id=None):   
+#     file = AddFiles.objects.get(pk=id)
+#     OTVET = JsonResponse({'success': True, 'message': 'POST','id':id})
+#     print('fgdgfdgdg',OTVET)
+#     # OTVET = JsonResponse({'success': True, 'message': 'POST','id':id})
+#     # print('dfdfdfdfdf')     
+#     # redirect(request.META['HTTP_REFERER']) 
+#     return  JsonResponse({'success': True, 'message': 'POST','id':id})
+
+
+def price_create(request, id=None):  
+
+    price = AddFiles.objects.get(pk=id).files.name
+
+    Curency = AddFiles.objects.get(pk=id).currency_field
+
+    if Curency == 'доллар':
+       cur = 78.6
+    if Curency == 'евро':
+       cur = 87
+    if Curency == 'рубль':
+       cur = 1
+
+
+
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    filepath_url = BASE_DIR + '/mediafiles/prices/'
+
+    folder = filepath_url
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+
+    pricefulldf = converter("mediafiles/"+price,fields_price)
+
+
+    conn = sqlite3.connect('db.sqlite3')        
+    sql_query = pd.read_sql_query ('''
+                                SELECT
+                                *
+                                FROM upload_originallbd
+                                ''', conn)
+    BDdf = pd.DataFrame(sql_query)
+
+    BDdf.drop('id', axis= 1 , inplace= True )
+
+    pricefulldf = pricefulldf[pricefulldf['quantity_field']==1]
+
+    pricefulldf['weight_field'] = pricefulldf['weight_field'].astype(float)
+
+    if (pricefulldf['weight_field'].dtype == np.float64 or pricefulldf['weight_field'].dtype == np.int64):
+        pass
+    else:
+        pricefulldf['price_field'] = pricefulldf['price_field'].str.replace(',', '.').astype('float64')
+
+    if (pricefulldf['price_field'].dtype == object):
+        pricefulldf['price_field'] = pricefulldf['price_field'].str.replace(',', '.').astype('float64')
+
+
+    # print(pricefulldf['price_field'].dtype)
+
+    PriseDf = BDdf.loc[((BDdf["weight_field"] != 0) & (BDdf["volume_field"] != 0)) & (BDdf["brend_field"].isin(pricefulldf['brend_field'])) & (BDdf["oem_field"].isin(pricefulldf['oem_field']))]
+
+
+    # fin = PriseDf.merge(pricefulldf.rename(columns={'brend_field': 'brend','oem_field': 'oem'}), how='left', on=['oem_field','brend_field'])
+
+    fin = PriseDf.merge(pricefulldf, left_on=['brend_field', 'oem_field'], right_on=['brend_field', 'oem_field'])
+    fin['price_field'] = fin['price_field']*cur
+
+    fin['price_field'] = fin['price_field'].round(2)
+
+ 
+
+    fin.drop(['name_field_y','volume_field_y','weight_field_y'], axis= 1 , inplace= True )
+
+    fin.drop_duplicates(['oem_field','brend_field'], inplace=True)
+
+    fin.rename(columns = {
+        'oem_field':'номер', 
+        'name_field_x':'название',
+        'weight_field_x':'вес', 
+        'volume_field_x':'объем', 
+        'price_field':'цена', 
+        'quantity_field':'кол-во',
+        'brend_field':'бренд',
+        }, inplace = True )
+
+
+
+    print(fin)
+
+    pricedf_path = 'mediafiles/prices/'
+    pricedf_name = price.split('.')[0]+'_create.csv'
+    price_url = pricedf_path+pricedf_name
+    fin.to_csv(price_url, index = False)
+
+    context = {
+    'price':pricedf_name,
+    'price_url':price_url
+    }
+    
+    return  render(request, "prices.html",context)
+
+    
+
+def download(request):
+
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    filepath_url = BASE_DIR + '/mediafiles/prices/'
+    filename =os.listdir(filepath_url)[0]
+    filepath = BASE_DIR + '/mediafiles/prices/' + filename
+    path = open(filepath, 'r')
+    mime_type, _ = mimetypes.guess_type(filepath)
+    response = HttpResponse(path, content_type=mime_type)
+    response['Content-Disposition'] = "attachment; filename=%s" % filename
+    return response
+    
+
+
 
 def file_delete(request, id=None):   
     file = AddFiles.objects.get(pk=id)
+    file_name = AddFiles.objects.get(pk=id).files.name
     file.delete()
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    filepath_url = BASE_DIR + '/mediafiles/'
+    os.remove(filepath_url+file_name)
+
     return JsonResponse({'success': True, 'message': 'Delete','id':id}) 
 
 def words_delete(request, id=None):   
@@ -257,7 +412,7 @@ atexit.register(lp.print_stats)
 # ph = PyHeat('D:/django-on-docker/app/upload/views.py')
 fp = open("report.log", "w+")
 # @profile(stream = fp)
-@lp
+# @lp
 def bd_create(request):   
     # ph.create_heatmap()
     s_time_dask = time.time()
@@ -270,8 +425,10 @@ def bd_create(request):
     password = settings.DATABASES['default']['PASSWORD']
     database_name = settings.DATABASES['default']['NAME']
 
-    database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
-    engine = create_engine(database_url, echo=False)
+    # database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
+    # engine = create_engine(database_url, echo=False)
+
+    engine = create_engine('sqlite:///db.sqlite3')
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
 
@@ -279,21 +436,18 @@ def bd_create(request):
     
     for price in prices:
         #Получаем датафрейм      
-        pricedf = converter("mediafiles/"+price) 
+        pricedf = converter("mediafiles/"+price,fields) 
         # print('before',pricedf.info())
         DataFrames.append(pricedf)
 
     result = concatenate(DataFrames)
-    # result = pd.concat(DataFrames,ignore_index=True)
-
-    # print('after',result.info())
 
     # Убираем полные дубликаты из общего фрейма
     result.drop_duplicates(inplace=True)
     
     # Получаем все неполные дубликаты по оем
     dub_oem = result[(result[['oem_field']].duplicated(keep=False))]
-    # dub_oem.to_csv('df_duble.csv', index = False)
+    dub_oem.to_csv('df_duble.csv', index = False)
 
     # Вынимаем из фрйма оставшиеся совпадения по оем
     result.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
@@ -306,7 +460,6 @@ def bd_create(request):
 
     # Получаем все дубликаты с одним из заполненных полей
     dub_oem_null = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & ((dub_oem['weight_field'] == 0) | (dub_oem['volume_field'] == 0)) ]
-    # dub_oem_name.drop_duplicates(['oem_field','name_field'], inplace=True, keep='first')
     # dub_oem_null.to_csv('dub_oem_null.csv', index = False)
 
     # Мерджим между собой
@@ -323,59 +476,12 @@ def bd_create(request):
     FULL.loc[FULL['volume_field'] < FULL['weight_field'], 'volume_field'] = 0
     FULL.to_csv('FULL.csv', index = False)
 
-    # if len(dub_oem_name)  == 0:
-    #     result.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine, chunksize = 1000, method='multi', index=True, index_label='id')
-    #     result.to_csv('df.csv', index = False)
-    # else:
-
-        # ПЕрвый куско очищенной итерации с ненулевым весом и объемом
-        # ful_oem_field = dub_oem_name.drop_duplicates(subset = ['oem_field','brend_field'])
-        # ful_oem_field.to_csv('ful_oem_field.csv', index = False)
-
-        # Датафрейм без куска с полными повторениями
-        # FULL_cleare = dub_oem[~dub_oem['oem_field'].isin(ful_oem_field['oem_field'])]
-        # FULL_cleare.to_csv('FULL_cleare.csv', index = False)
-
-        # Оставляем максимальные значения по весу из дубликатов 
-        # max_oem_weight = FULL_cleare.groupby('oem_field', group_keys=False, as_index=False,observed=True,sort=False).apply(lambda x: x.loc[x.weight_field.idxmax()])
-        # max_oem_weight = FULL_cleare.groupby(by=['oem_field'],as_index=False).agg({'name_field': 'first','weight_field': 'max','volume_field': 'max','brend_field': 'first'})
-        # max_oem_weight.to_csv('df_duble_max-2.csv', index = False)
-        
-        # Получаем группировку с максимальные значения по объему из дубликатов 
-        # max_oem_volume_full = FULL_cleare.groupby('oem_field', group_keys=False,as_index=False,observed=True,sort=False).apply(lambda x: x.loc[x.volume_field.idxmax()])
-         # max_oem_weight.to_csv('df_duble_max-volume_max.csv', index = False)
-        
-        # Оставляем максимальные значения по объему из дубликатов
-        # max_oem_volume = max_oem_volume_full.groupby(['oem_field'],group_keys=False,as_index=False,observed=True,sort=False).apply(lambda x: x[x['volume_field'] != 0 ])
-
-    # ---------------------! полные поля+максимальыне по весу, плюс не нулевые по объему--------------------------------
-
-        # full = pd.concat([ful_oem_field, max_oem_weight, max_oem_volume], ignore_index=True)
-
-    # --------------------! смердженные по весу и объему дубликаты---------------------------
-        # res = full[(full[['oem_field']].duplicated(keep=False))]
-        # res_sum = res.groupby('oem_field').sum().reset_index() - суммирует так же и другие поля
-
-        # res['volume_field'] = res.groupby(['oem_field'])['volume_field'].transform('sum')
-        # res_sum = res.drop_duplicates(subset=['oem_field'])
-
-    # ---------------------! кусок без смрджененых дубликатов--------------------------------
-        # full.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
-
-    
-    # --------------------! полнсотью очищенный и смердженный кусок ---------------------------          
-        
-        # finalDF = pd.concat([full, res_sum, result],ignore_index=True)
-
-        # print(finalDF.info())
-
     FULL.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine,   index=True, index_label='id')
 
-    # finalDF.to_csv('df2.csv', index = False)
+ 
     e_time_dask = time.time()
-    # print(result)
+
     print("calculate df ", (e_time_dask-s_time_dask), "seconds")
-    # ph.show_heatmap('image_file.png')
     render(request, "search_results.html")
     return redirect(request.META['HTTP_REFERER'])
 
@@ -401,8 +507,10 @@ def brands_create(request):
     password = settings.DATABASES['default']['PASSWORD']
     database_name = settings.DATABASES['default']['NAME']
 
-    database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
-    engine = create_engine(database_url, echo=False)
+    # database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
+    # engine = create_engine(database_url, echo=False)
+
+    engine = create_engine('sqlite:///db.sqlite3')
 
     if request.method == "POST":
         if form.is_valid():
@@ -459,6 +567,7 @@ def image_upload(request):
             file = form_files.cleaned_data['files']
             files_str = form_files.cleaned_data['files'].name
             brend_field = form_files.cleaned_data['brend_field']
+            currency_field = form_files.cleaned_data['currency_field']
             instance = form_files.save(commit=False)
             # print('dct jr',instance)
 
@@ -471,11 +580,12 @@ def image_upload(request):
             newfiles = AddFiles.objects.create(
             files=file,
             brend_field=brend_field,
+            currency_field = currency_field,
             is_mono = is_mono
             )
              # newfiles.is_mono = True
 
-            data = {'pk':newfiles.pk, 'brend_field': brend_field}
+            data = {'pk':newfiles.pk, 'brend_field': brend_field, 'currency_field': currency_field}
             ser_instance = serializers.serialize('json', [ instance, ])
             # print('это сериализация прайсов',data)
             return JsonResponse({"instance": ser_instance,'data':data}, status=200)

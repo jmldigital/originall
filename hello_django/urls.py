@@ -3,7 +3,8 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 
-from upload.views import stop_create,image_upload,Words_update,file_delete,words_delete,brands_create,brands_delete,bd_create
+
+from upload.views import stop_create,image_upload,Words_update,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download
 
 urlpatterns = [
     path("", image_upload, name="upload"),
@@ -15,6 +16,9 @@ urlpatterns = [
     path('delbr/<int:id>', brands_delete, name='brands-delete'),
     path("brandscreate", brands_create, name="brands-create"),
     path("bd", bd_create, name="bd-create"),
+    # path('loadpr/<int:id>', price_load, name='load-price'),
+    path('lcreatepr/<int:id>', price_create, name='create-price'),
+    path('download/', download, name='download'),
     # path('search/', SearchResultsView.as_view(), name='search_results'),
     path("edit/<int:pk>/", Words_update, name="update"),
     path("admin/", admin.site.urls),

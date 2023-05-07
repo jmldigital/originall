@@ -7,12 +7,23 @@ class StopWords(models.Model):
 
 class AddFiles(models.Model): 
 
+    dol = 'доллар'
+    eur = 'евро'
+    rub = 'рубль'
+
+    CUR = [
+        (dol,'доллар'),
+        (eur,'евро'),
+        (rub,'рубль'),
+    ]
+
     files = models.FileField(upload_to='',null=True,blank=True)
     oem_field = models.CharField(max_length=30, verbose_name='номер детали',blank=True,null=True)
     brend_field = models.CharField(max_length=70, verbose_name='бренд',blank=True,null=True)
     name_field = models.CharField(max_length=130, verbose_name='название детали',blank=True,null=True)
     weight_field = models.CharField(max_length=130, verbose_name='вес',blank=True,null=True)
     volume_field = models.CharField(max_length=130, verbose_name='объем',blank=True,null=True)
+    currency_field  = models.CharField(max_length=6, verbose_name='валюта',blank=True, choices=CUR, default=dol, null=True)
     is_mono = models.BooleanField(default=False)
 
 # def __str__(self):
@@ -25,13 +36,12 @@ class Brands(models.Model):
 
 
 class OriginallBD(models.Model): 
-
-  
+ 
     oem_field = models.CharField(max_length=30, verbose_name='номер детали',blank=True,null=True)
     brend_field = models.CharField(max_length=70, verbose_name='бренд',blank=True,null=True)
     name_field = models.CharField(max_length=130, verbose_name='название детали',blank=True,null=True)
-    weight_field = models.CharField(max_length=130, verbose_name='вес',blank=True,null=True)
-    volume_field = models.CharField(max_length=130, verbose_name='объем',blank=True,null=True)
+    weight_field = models.CharField(max_length=10, verbose_name='вес',blank=True,null=True)
+    volume_field = models.CharField(max_length=10, verbose_name='объем',blank=True,null=True)
 
 def __str__(self):
     return self.brend_field
