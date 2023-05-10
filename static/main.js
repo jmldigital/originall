@@ -70,7 +70,7 @@ words_tab.addEventListener("click", (event) => {
                       </svg>
                           
                           </button>
-                        </td> gggg
+                        </td> 
                     </tr>`
                 )
             },     
