@@ -5,3 +5,36 @@
 .bg-primary {
 background-color: black;
 }
+
+#brands_tab, #words_tab {
+    cursor: pointer;
+
+}
+
+#inline-form {
+
+    display:flex;
+}
+
+#brand-form, #stopwords-form {
+    display:flex;
+    justify-content: space-between;
+}
+
+.clearablefileinput {
+    /* padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    border-radius: 0.25rem;
+    --tw-bg-opacity: 1;
+    background-color: rgba(243,244,246,var(--tw-bg-opacity)); */
+
+}
+
+#error_1_id_currency_field {
+
+    display:none;
+}

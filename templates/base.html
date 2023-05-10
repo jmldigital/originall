@@ -1,0 +1,35 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+
+<head>
+<link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.css" />
+<script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.js"></script>
+<script src="{% static 'jquery.cookie.js' %}"></script>
+
+<link href="{% static 'style.css' %}" rel="stylesheet">
+
+
+<!-- <script type="text/javascript"> window.CSRF_TOKEN = "{{ csrf_token }}"; </script> -->
+
+<script src="{% static 'main.js' %}"></script>
+
+
+</head>
+
+
+<body>
+
+  <div class="max-w-7xl mx-auto ">
+    {% include "navbar.html" %}
+    {% block content %}
+    {% endblock content %}
+
+    
+  </div>
+
+</body>
+  
+</html>

@@ -1,11 +1,7 @@
 
-<head>
-<link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.css" />
-<script src="https://code.jquery.com/jquery-3.5.1.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.js"></script>
-
-</head>
+{% extends "base.html" %}
+{% block content %}
+{% load tailwind_filters %}
 
 
 <script>
@@ -18,12 +14,6 @@ $(document).ready(function() {
 </script>
 
 
-{% block content %}
-{% load tailwind_filters %}
-
-<body>
-
-
 <div class="container px-5 py-24 mx-auto flex flex-wrap">
   <div class="w-full flex justify-between">
 
@@ -32,7 +22,8 @@ $(document).ready(function() {
       <table id="example6" class="table table-striped display nowrap " style="width:100%;">
           <thead>
               <tr>
-                  <th>файл</th>
+                  <th>Прайс</th>
+                  <th>Кол-во строк</th>
                   <th></th>
               </tr>
           </thead>
@@ -40,6 +31,7 @@ $(document).ready(function() {
             
               <tr>
                      <td class="text-center"> {{ price }} </td>
+                     <th>{{ len }}</th>
 
                   <td class="text-center">
                       <a href="" class="text-indigo-600 hover:text-indigo-900 pb-5">  
@@ -53,6 +45,7 @@ $(document).ready(function() {
           <tfoot>
               <tr>
 
+                  <th></th>
                   <th></th>
                   <th></th>
               </tr>        

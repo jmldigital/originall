@@ -1,3 +1,31 @@
+document.addEventListener('DOMContentLoaded', function(){
+const words_tab = document.getElementById('words_tab')
+const brands_tab = document.getElementById('brands_tab')
+
+const words_table = document.getElementById('words_table')
+const brands_table = document.getElementById('brands_table')
+// console.log('sdsdsd',words_tab)
+
+
+words_tab.addEventListener("click", (event) => {
+    words_table.classList.remove("hidden");
+    words_tab.classList.add('text-indigo-500', 'border-indigo-500');
+    brands_tab.classList.remove('text-indigo-500', 'border-indigo-500');
+    brands_table.classList.add("hidden");
+  });
+
+  brands_tab.addEventListener("click", (event) => {
+    brands_table.classList.remove("hidden");
+    brands_tab.classList.add('text-indigo-500', 'border-indigo-500');
+    words_tab.classList.remove('text-indigo-500', 'border-indigo-500');
+    words_table.classList.add("hidden");
+  });
+
+});
+
+
+
+
 
     //  $("body").on("click",function(yy){
     $(document).ready(function() {
@@ -7,9 +35,6 @@
         const csrf_words = document.querySelector("#example input[name='csrfmiddlewaretoken'");
         const csrf_price = document.querySelector("#example4 input[name='csrfmiddlewaretoken'");
         const csrf_brand = document.querySelector("#example2 input[name='csrfmiddlewaretoken'");
-        
-   
-
     
     $("#stopwords-form").submit(function (e) {
 
@@ -35,8 +60,16 @@
                    `<tr class="post-${pk}">
                     <td class="text-center sorting_1">${fields["words"]||""}</td>
                     <td class="text-center sorting_1">
-                         <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_words.value}">
-                          <button type="button"  class="delete_words" data-id='${pk}' > Удалить  </button>
+                         <input type="hidden" name="csrfmiddlewaretoken" value="">
+                          <button type="button"  class="delete_words" data-id='${pk}' > 
+                          
+                          <svg width="22" height="22" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path fill-rule="evenodd" clip-rule="evenodd" d="M8 15H40L37 44H11L8 15Z" fill="#EB5757" stroke="#1D1D1D" stroke-width="3" stroke-linejoin="round"/>
+                          <path d="M20.002 25.0024V35.0026M28.0024 24.9995V34.9972" stroke="#E0E0E0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                          <path d="M12 14.9999L28.3242 3L36 15" stroke="#1D1D1D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                          
+                          </button>
                         </td>
                     </tr>`
                 )
@@ -96,7 +129,16 @@
                     <td class="text-center sorting_1">${fields["brand"]||""}</td>
                     <td class="text-center sorting_1">
                     <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_brand.value}">
-                    <button type="button"  class="delete_buttonbr" data-id='${pk}' > Удалить  </button>
+                    <button type="button"  class="delete_buttonbr" data-id='${pk}' > 
+                    
+                    <svg width="22" height="22" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M8 15H40L37 44H11L8 15Z" fill="#EB5757" stroke="#1D1D1D" stroke-width="3" stroke-linejoin="round"/>
+                    <path d="M20.002 25.0024V35.0026M28.0024 24.9995V34.9972" stroke="#E0E0E0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 14.9999L28.3242 3L36 15" stroke="#1D1D1D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                    
+                    
+                    </button>
                         </td>
                     </tr>`
                 );
@@ -151,14 +193,32 @@
                     <td class="text-center sorting_1">${fields["files"]||""}</td>
                     <td class="text-center sorting_1">${data["brend_field"]||""}</td>
                     <td class="text-center sorting_1">${data["currency_field"]||""}</td>
+
                     <td class="text-center sorting_1">
                     <input type="hidden" name="csrfmiddlewaretoken" value="">
-                            <button type="button"  class="load_price" data-id="${data["pk"]}" > Выгрзуить </button>
+                            <button type="button"  class="delete_price" data-id="${data["pk"]}" > 
+                            
+                            <svg width="22" height="22" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M8 15H40L37 44H11L8 15Z" fill="#EB5757" stroke="#1D1D1D" stroke-width="3" stroke-linejoin="round"/>
+                            <path d="M20.002 25.0024V35.0026M28.0024 24.9995V34.9972" stroke="#E0E0E0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 14.9999L28.3242 3L36 15" stroke="#1D1D1D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                            
+                            </button>
                     </td>
+
                     <td class="text-center sorting_1">
                     <input type="hidden" name="csrfmiddlewaretoken" value="">
-                            <button type="button"  class="delete_price" data-id="${data["pk"]}" > Удалить </button>
+
+                    <a href="/lcreatepr/${data["pk"]}" class="inline-flex items-center" data-id="${data["pk"]}">
+                        <img alt="blog" src="https://svgshare.com/i/szx.svg" class="w-8 h-8 rounded-full flex-shrink-0 object-cover object-center">
+                        <span class="flex-grow flex flex-col pl-3">
+                        <span class="title-font font-medium text-gray-900">Сформировать</span>
+                        </span>
+                    </a>
+                           
                     </td>
+
                     </tr>`
                 );
                 
