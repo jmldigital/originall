@@ -33,9 +33,10 @@ words_tab.addEventListener("click", (event) => {
         const progressBox = document.getElementById('progress-box')
         const TableStop = document.getElementById('progress-box')
         const csrf_words = document.querySelector("#example input[name='csrfmiddlewaretoken'");
+        const csrf_bd = document.querySelector("#example5 input[name='csrfmiddlewaretoken'");
         const csrf_price = document.querySelector("#example4 input[name='csrfmiddlewaretoken'");
         const csrf_brand = document.querySelector("#example2 input[name='csrfmiddlewaretoken'");
-    
+    // console.log(csrf_bd)
     $("#stopwords-form").submit(function (e) {
 
         e.preventDefault();
@@ -104,6 +105,35 @@ words_tab.addEventListener("click", (event) => {
             });
         });  
 
+
+        $("body").on("click",".delete_bd",function(u){
+
+                u.preventDefault();
+                var id = $(this).data('id');
+
+                $.ajax({
+                    url: "bddel/"+id,
+                    type: 'DELETE',
+                    dataType: 'json',
+                    headers: {
+                        "X-CSRFTOKEN": csrf_bd.value
+                    },
+                    data: { id : id },
+
+                    beforeSend: function(xhr) {
+                        xhr.setRequestHeader("X-CSRFToken", csrf_bd.value );
+                    },
+                    success: function(response){
+                        
+                        $("#example5 .post-" + id).remove();
+                    },
+                    error: function (response) {
+                        
+                        console.log(response,'произошла ошибка')
+                     }
+                });
+            });
+    
 
     $("#brand-form").submit(function (z) {
         // preventing default actions

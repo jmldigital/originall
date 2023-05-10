@@ -4,7 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 
-from upload.views import stop_create,price_upload,Words_update,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download
+from upload.views import stop_create,price_upload,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download,BD_delete,BD_update
 
 urlpatterns = [
     path("", price_upload, name="upload"),
@@ -20,9 +20,10 @@ urlpatterns = [
     path('lcreatepr/<int:id>', price_create, name='create-price'),
     path('download/', download, name='download'),
     # path('search/', SearchResultsView.as_view(), name='search_results'),
-    path("edit/<int:pk>/", Words_update, name="update"),
+    # path("edit/<int:pk>/", Words_update, name="update"),
+    path("bddel/<int:id>/", BD_delete, name="BD-delete"),
     path("admin/", admin.site.urls),
-    #path('edit/<int:pk>/', WordsUpdate.as_view(), name='stop-update')
+    path('edit/<int:pk>/', BD_update.as_view(), name='bd-update')
 ]
 
 if bool(settings.DEBUG):

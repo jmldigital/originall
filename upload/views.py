@@ -5,19 +5,17 @@ import os.path, shutil
 import cgi
 from .forms import StopWordsForm, FilesForm,BrandsForm,BrandsUploadForm
 from .models import StopWords,AddFiles,Brands,OriginallBD
-from django.views import generic
+
 from django.shortcuts import render, redirect, reverse
 from django.http import HttpResponse,Http404
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, text
 import re
 from django.http import JsonResponse
 from django.core import serializers
-from django.views.generic.edit import FormView
-from .forms import FileFieldForm
 from pandas import read_sql_query
 from django.db.models import Q
 from django.conf import settings
-from django.views.generic import TemplateView, ListView
+from django.views import generic
 from dask import dataframe as df1
 import time
 from dask.diagnostics import ProgressBar,ResourceProfiler
@@ -406,6 +404,32 @@ def file_delete(request, id=None):
     os.remove(filepath_url+file_name)
     return JsonResponse({'success': True, 'message': 'Delete','id':id}) 
 
+
+def BD_delete(request, id=None):   
+    detail = OriginallBD.objects.get(id=id)
+    detail.delete()
+    return JsonResponse({'success': True, 'message': 'Delete','id':id}) 
+
+
+class BD_update(generic.UpdateView):
+    model = OriginallBD
+    template_name = "bd_update.html"
+    fields = '__all__'
+
+    def get_success_url(self):
+        return reverse("upload")
+    
+    # def get_queryset(self):
+    #     context = super(BD_update, self).get_context_data()
+    #     queryset = OriginallBD.objects.filter(name_field='kia')
+    #     print('ddsfsdfdf',context)
+    #     return queryset
+
+    
+    
+
+
+
 def words_delete(request, id=None):   
     words = StopWords.objects.get(pk=id)
     words.delete()
@@ -665,18 +689,18 @@ def stop_create(request):
     
 
 
-def Words_update(request, pk):
-    words = StopWords.objects.get(id=pk)
-    form3 = StopWordsForm(instance=words )
-    if request.method == "POST":
-        form3 = StopWordsForm(request.POST,request.FILES,instance=words)
-        if form3.is_valid():
-            form3.save()
-            return redirect("/edit/4/")
+# def Words_update(request, pk):
+#     words = StopWords.objects.get(id=pk)
+#     form3 = StopWordsForm(instance=words )
+#     if request.method == "POST":
+#         form3 = StopWordsForm(request.POST,request.FILES,instance=words)
+#         if form3.is_valid():
+#             form3.save()
+#             return redirect("/edit/4/")
 
-    context = {
-        "words": words,
-        "form": form3
-    }
+#     context = {
+#         "words": words,
+#         "form": form3
+#     }
 
-    return render(request, "upload.html", context)
+#     return render(request, "upload.html", context)
