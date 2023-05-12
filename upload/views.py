@@ -9,6 +9,7 @@ from .models import StopWords,AddFiles,Brands,OriginallBD
 from django.shortcuts import render, redirect, reverse
 from django.http import HttpResponse,Http404
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, text
+from sqlalchemy.orm import sessionmaker
 import re
 from django.http import JsonResponse
 from django.core import serializers
@@ -528,9 +529,20 @@ def bd_create(request):
     # проверяем если объем меньше массы
     FULL.loc[FULL['volume_field'] < FULL['weight_field'], 'volume_field'] = 0
     FULL.to_csv('mediafiles/csv/FULL.csv', index = False)
-    FULL.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine,   index=True, index_label='id')
- 
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    
+    try:
+        FULL.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine,   index=True, index_label='id')
+        session.commit()
+    except:
+        session.rollback()
+    finally:
+        session.close()
+
     e_time_dask = time.time()
+
     print("calculate df ", (e_time_dask-s_time_dask), "seconds")
 
 

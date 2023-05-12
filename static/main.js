@@ -202,7 +202,7 @@ words_tab.addEventListener("click", (event) => {
                     // console.log(e)
                     if (e.lengthComputable) {
                         const percent = e.loaded / e.total * 100
-                        console.log(percent)
+                        // console.log(percent)
                         progressBox.innerHTML = `
                         <div class="h-1 bg-blue-500" style="width:${percent}%"></div>`
                     }
@@ -254,7 +254,7 @@ words_tab.addEventListener("click", (event) => {
                 
              },
              error: function (response) {
-                console.log(response,'произошла ошибка')
+                console.log(response,'произошла ошибка в загрузке прайса')
              },
             cache: false,
             contentType: false,
