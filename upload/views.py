@@ -21,7 +21,7 @@ import time
 from dask.diagnostics import ProgressBar,ResourceProfiler
 from pandas.api.types import union_categoricals
 # from pyheat import PyHeat
-from line_profiler import LineProfiler
+# from line_profiler import LineProfiler
 import mimetypes
 import sqlite3
 
@@ -287,6 +287,15 @@ def price_create(request, id=None):
     price = AddFiles.objects.get(pk=id).files.name
     Curency = AddFiles.objects.get(pk=id).currency_field
 
+    user = settings.DATABASES['default']['USER']
+    password = settings.DATABASES['default']['PASSWORD']
+    database_name = settings.DATABASES['default']['NAME']
+    host_name = settings.DATABASES['default']['HOST']
+    port = settings.DATABASES['default']['PORT']
+
+    database_url = 'postgresql://{user}:{password}@{host_name}:{port}/{database_name}'.format( user=user,password=password,database_name=database_name,host_name=host_name,port=port)
+    engine = create_engine(database_url, echo=False)
+
     if Curency == 'доллар':
        cur = 78.6
     if Curency == 'евро':
@@ -310,14 +319,19 @@ def price_create(request, id=None):
             print('Failed to delete %s. Reason: %s' % (file_path, e))
 
     pricefulldf = converter("mediafiles/"+price,fields_price)
+    
 
-    conn = sqlite3.connect('db.sqlite3')        
-    sql_query = pd.read_sql_query ('''
-                                SELECT
-                                *
-                                FROM upload_originallbd
-                                ''', conn)
-    BDdf = pd.DataFrame(sql_query)
+    BDdf = pd.read_sql_query('select * from "upload_originallbd"',con=engine)
+
+    # conn = sqlite3.connect('db.sqlite3')        
+    # sql_query = pd.read_sql_query ('''
+    #                             SELECT
+    #                             *
+    #                             FROM upload_originallbd
+    #                             ''', conn)
+    
+
+    # BDdf = pd.DataFrame(sql_query)
 
 # удаляем id столбец из датафрейма бд
     BDdf.drop('id', axis= 1 , inplace= True )
@@ -446,9 +460,9 @@ def brands_delete(request, id=None):
     brand.delete()
     return JsonResponse({'success': True, 'message': 'Delete','id':id})   
 
-import atexit
-lp = LineProfiler()
-atexit.register(lp.print_stats)
+# import atexit
+# lp = LineProfiler()
+# atexit.register(lp.print_stats)
 
 
 # @lp
@@ -458,11 +472,13 @@ def bd_create(request):
     user = settings.DATABASES['default']['USER']
     password = settings.DATABASES['default']['PASSWORD']
     database_name = settings.DATABASES['default']['NAME']
+    host_name = settings.DATABASES['default']['HOST']
+    port = settings.DATABASES['default']['PORT']
 
-    # database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
-    # engine = create_engine(database_url, echo=False)
+    database_url = 'postgresql://{user}:{password}@{host_name}:{port}/{database_name}'.format( user=user,password=password,database_name=database_name,host_name=host_name,port=port)
+    engine = create_engine(database_url, echo=False)
 
-    engine = create_engine('sqlite:///db.sqlite3')
+    # engine = create_engine('sqlite:///db.sqlite3')
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
     DataFrames = []
     
@@ -478,7 +494,7 @@ def bd_create(request):
     
     # Получаем все неполные дубликаты по оем
     dub_oem = result[(result[['oem_field']].duplicated(keep=False))]
-    dub_oem.to_csv('df_duble.csv', index = False)
+    dub_oem.to_csv('mediafiles/csv/df_duble.csv', index = False)
 
     # Вынимаем из фрйма оставшиеся совпадения по оем
     result.drop_duplicates(subset = 'oem_field', inplace=True, keep=False)
@@ -487,25 +503,31 @@ def bd_create(request):
     # Получаем все дубликаты с полностью заполненными полями
     dub_oem_name_weight_vol = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & (dub_oem['weight_field'] > 0) & (dub_oem['volume_field'] > 0)]
     dub_oem_name_weight_vol.drop_duplicates(['oem_field','brend_field'], inplace=True)
-    # dub_oem_name_weight_vol.to_csv('dub_oem_name_weight_vol.csv', index = False)
+    # dub_oem_name_weight_vol.to_csv('mediafiles/csv/dub_oem_name_weight_vol.csv', index = False)
 
     # Получаем все дубликаты с одним из заполненных полей
     dub_oem_null = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & ((dub_oem['weight_field'] == 0) | (dub_oem['volume_field'] == 0)) ]
     # dub_oem_null.to_csv('dub_oem_null.csv', index = False)
 
-    # Мерджим между собой
+    # Мерджим между собой дубликаты с одним из заполненных полей
     group_null_merdge = dub_oem_null.groupby(by=['oem_field','brend_field'],as_index=False).agg({'name_field': 'first','weight_field': 'max','volume_field': 'max','brend_field': 'first'})
-    # group_null_merdge.to_csv('group_null_merdge.csv', index = False)
+    # group_null_merdge.to_csv('mediafiles/csv/group_null_merdge.csv', index = False)
     
     # Соединяем смерженные с полными полями и оставляем максимальные
     finalDF = pd.concat([group_null_merdge, dub_oem_name_weight_vol],ignore_index=True)
-    finalDF_ALL = finalDF.groupby(by=['oem_field','brend_field'],as_index=False).agg({'name_field': 'first','weight_field': 'min','volume_field': 'max','brend_field': 'first'})
+
+    #функция для поиска минимального ненулевого значения
+    get_min = lambda x: np.min(x) if np.min(x) > 0 else np.max(x)
+
+
+    finalDF_ALL = finalDF.groupby(by=['oem_field','brend_field'],as_index=False).agg({'name_field': 'first','weight_field': get_min,'volume_field': 'max','brend_field': 'first'})
+    # finalDF_ALL.to_csv('mediafiles/csv/finalDF_ALL.csv', index = False)
 
     FULL = pd.concat([finalDF_ALL, result],ignore_index=True)
 
     # проверяем если объем меньше массы
     FULL.loc[FULL['volume_field'] < FULL['weight_field'], 'volume_field'] = 0
-    FULL.to_csv('FULL.csv', index = False)
+    FULL.to_csv('mediafiles/csv/FULL.csv', index = False)
     FULL.to_sql(OriginallBD._meta.db_table, if_exists='replace', con=engine,   index=True, index_label='id')
  
     e_time_dask = time.time()
@@ -535,11 +557,13 @@ def brands_create(request):
     user = settings.DATABASES['default']['USER']
     password = settings.DATABASES['default']['PASSWORD']
     database_name = settings.DATABASES['default']['NAME']
+    host_name = settings.DATABASES['default']['HOST']
+    port = settings.DATABASES['default']['PORT']
 
-    # database_url = 'postgresql://{user}:{password}@localhost:5432/{database_name}'.format( user=user,password=password,database_name=database_name,)
-    # engine = create_engine(database_url, echo=False)
+    database_url = 'postgresql://{user}:{password}@{host_name}:{port}/{database_name}'.format( user=user,password=password,database_name=database_name,host_name=host_name,port=port)
+    engine = create_engine(database_url, echo=False)
 
-    engine = create_engine('sqlite:///db.sqlite3')
+    # engine = create_engine('sqlite:///db.sqlite3')
 
     if request.method == "POST":
         if form.is_valid():
@@ -650,8 +674,10 @@ def price_upload(request):
         else:
             object_list = OriginallBD.objects.filter(pk=1)    
 
-
-    len = OriginallBD.objects.all().count()
+    try:
+        len = OriginallBD.objects.all().count()
+    except:
+        len = 0
 
     if len == None:
         notation = "не сформированна"

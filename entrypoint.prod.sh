@@ -11,4 +11,8 @@ then
     echo "PostgreSQL started"
 fi
 
+echo "продакт депло1йййййййййййййййййййййййййййййййй"
+python manage.py migrate --run-syncdb
+python manage.py collectstatic --no-input --clear 
+
 exec "$@"
