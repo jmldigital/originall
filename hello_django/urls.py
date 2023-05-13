@@ -2,9 +2,10 @@ from django.contrib import admin
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
+# from upload.views.views_a import *
 
 
-from upload.views import stop_create,price_upload,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download,BD_delete,BD_update
+from upload.views.views_a import stop_create,price_upload,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download,BD_delete,BD_update
 
 urlpatterns = [
     path("", price_upload, name="upload"),
