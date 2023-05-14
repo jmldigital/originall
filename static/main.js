@@ -32,6 +32,7 @@ words_tab.addEventListener("click", (event) => {
 
         const progressBox = document.getElementById('progress-box')
         const TableStop = document.getElementById('progress-box')
+        const BdButton = document.getElementById('bdcreatebutton')
         const csrf_words = document.querySelector("#example input[name='csrfmiddlewaretoken'");
         const csrf_bd = document.querySelector("#example5 input[name='csrfmiddlewaretoken'");
         const csrf_price = document.querySelector("#example4 input[name='csrfmiddlewaretoken'");
@@ -211,6 +212,9 @@ words_tab.addEventListener("click", (event) => {
             },
 
             success: function (response) {
+
+                $(BdButton).removeClass( "hidden" );
+
                 progressBox.classList.add('not-visible')
                 $("#price-forms").trigger('reset');
                 var instance = JSON.parse(response["instance"]);
@@ -219,7 +223,7 @@ words_tab.addEventListener("click", (event) => {
                 var fields = instance[0]["fields"];
                 var pk = instance[0]["pk"];
                 $("#example4 tbody").prepend(
-                   `<tr class="post-${data["pk"]}">
+                   `<tr id="rowID" class="post-${data["pk"]}">
                     <td class="text-center sorting_1">${fields["files"]||""}</td>
                     <td class="text-center sorting_1">${data["brend_field"]||""}</td>
                     <td class="text-center sorting_1">${data["currency_field"]||""}</td>
@@ -299,6 +303,13 @@ words_tab.addEventListener("click", (event) => {
                 },
                 success: function(response){
                     $("#example4 .post-" + id).remove();
+                       
+                    if($('#rowID').length == 0){
+                        
+                    $(BdButton).addClass( "hidden" )
+                    }
+   
+                    
                 }
             });
         });

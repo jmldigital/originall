@@ -18,21 +18,18 @@ def get_key(val,dic):
     return "key doesn't exist"
 
 fields = {
-'oem_field':['Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
-'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field'],
-'name_field':['Название','detailname','titel','title','название','bezde'],
+'oem_field':['код','Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
+'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд'],
+'name_field':['Название','detailname','titel','title','название','bezde','Наименование'],
 'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
 'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
-fields_price = {
-'oem_field':['Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
+fields_add = {
 'price_field':['price','cost','preis','цена','стоимость','DetailPrice'],
-'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field'],
-'name_field':['Название','detailname','titel','title','название','bezde'],
-'quantity_field':['volume','menge','quantity','кол-во','количество','min','PackQuantity'],
-'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
-'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
+'quantity_field':['volume','menge','quantity','кол-во','количество','min','PackQuantity','мин'],
+ }
 
+fields_price = fields | fields_add
 
 
 def concatenate(dfs):
@@ -106,7 +103,7 @@ def heders_xls(file,fields):
     for key in fields.keys():
         result=lowercomapre(fields[key],header_list)
         arr[key] = result
-    
+       
     for key in arr.copy():
         if not arr[key]:
             arr.pop(key)
@@ -184,8 +181,9 @@ def converter(file,dfcolumns):
                 raw_data['brend_field'] = OneFile.brend_field
                 raw_data['brend_field'] = raw_data['brend_field'].astype('category')
         else:
-            raw_data = pd.read_excel(file, usecols=dic.keys(), engine = engine_xls, dtype=dtypes)
-
+            raw_data = pd.read_excel(file, usecols=dic.keys(), engine = engine_xls, dtype={get_key('name_field',dic):'category',get_key('brend_field',dic):'category'})
+        
+   
         tt=raw_data.rename(columns = dic)
         ts= tt.dropna(subset=['name_field', "brend_field"])
         if 'volume_field' in ts.columns.tolist():

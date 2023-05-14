@@ -1,11 +1,14 @@
 from django.shortcuts import render
 import pandas as pd
 import numpy as np
+import pickle
 import os.path, shutil
 import cgi
 from ..forms import StopWordsForm, FilesForm,BrandsForm,BrandsUploadForm
 from ..models import StopWords,AddFiles,Brands,OriginallBD
-
+import pyarrow as pa
+import pyarrow.parquet as pq
+import requests
 from django.shortcuts import render, redirect, reverse
 from django.http import HttpResponse,Http404
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, text
@@ -57,11 +60,14 @@ def price_create(request, id=None):
     price = AddFiles.objects.get(pk=id).files.name
     Curency = AddFiles.objects.get(pk=id).currency_field
 
+    Valute = requests.get('https://www.cbr-xml-daily.ru/daily_json.js').json()
+    
+    # print('dollar',Valute['Valute']['USD']['Value'],'euro',Valute['Valute']['EUR']['Value'])
 
     if Curency == 'доллар':
-       cur = 78.6
+       cur = Valute['Valute']['USD']['Value']
     if Curency == 'евро':
-       cur = 87
+       cur = Valute['Valute']['EUR']['Value']
     if Curency == 'рубль':
        cur = 1
 
@@ -83,7 +89,11 @@ def price_create(request, id=None):
     BDdf.drop('id', axis= 1 , inplace= True )
 
 # фильтруем по минимальному пакеджу в доставке прайсовый датафрейм
-    pricefulldf = pricefulldf[pricefulldf['quantity_field']==1]
+    if Curency != 'рубль':
+        pricefulldf = pricefulldf[pricefulldf['quantity_field']==1]
+    else:
+        pricefulldf = pricefulldf[pricefulldf['quantity_field']!=0]
+
     pricefulldf['weight_field'] = pricefulldf['weight_field'].astype(float)
 
     if (pricefulldf['weight_field'].dtype == np.float64 or pricefulldf['weight_field'].dtype == np.int64):
@@ -95,7 +105,11 @@ def price_create(request, id=None):
         pricefulldf['price_field'] = pricefulldf['price_field'].str.replace(',', '.').astype('float64')
 
 # получаем готовый прайс из базы данных 
-    PriseDf = BDdf.loc[((BDdf["weight_field"] != 0) & (BDdf["volume_field"] != 0)) & (BDdf["brend_field"].isin(pricefulldf['brend_field'])) & (BDdf["oem_field"].isin(pricefulldf['oem_field']))]
+    if Curency != 'рубль':
+        PriseDf = BDdf.loc[((BDdf["weight_field"] != 0) & (BDdf["volume_field"] != 0)) & (BDdf["brend_field"].isin(pricefulldf['brend_field'])) & (BDdf["oem_field"].isin(pricefulldf['oem_field']))]
+    else:
+        PriseDf = BDdf.loc[(BDdf["brend_field"].isin(pricefulldf['brend_field'])) & (BDdf["oem_field"].isin(pricefulldf['oem_field']))]
+
 
 # добавляем к прайсу цену и мин кол-во
     fin = PriseDf.merge(pricefulldf, left_on=['brend_field', 'oem_field'], right_on=['brend_field', 'oem_field'])
@@ -127,15 +141,16 @@ def price_create(request, id=None):
 
   
     pricedf_name = price.split('.')[0]+'_create.csv'
-
     price_url = filepath_price+'/'+pricedf_name
-
-    print('price_url',price_url)
     
     # try:
     #     fin.to_csv(price_url, index = False,encoding='cp1251')
     # except:
-    fin.to_csv(price_url, index = False)
+    try:
+        fin.to_csv(price_url, index = False, encoding='cp1251')
+    except:
+        fin.to_csv(price_url, index = False)
+
     len = fin.shape[0]
     context = {
     'price':pricedf_name,
@@ -150,10 +165,12 @@ def download(request):
 
     filename =os.listdir(filepath_price)[0]
     filepath = filepath_price +'/'+ filename
-    path = open(filepath, 'r')
+    path = open(filepath, 'r', encoding="utf8")
     mime_type, _ = mimetypes.guess_type(filepath)
     response = HttpResponse(path, content_type=mime_type)
-    response['Content-Disposition'] = "attachment; filename=%s" % filename
+    s = "attachment; filename=%s" % filename
+    cr = s.encode(encoding = 'cp1251')
+    response['Content-Disposition'] = cr
     return response
     
 
@@ -217,22 +234,27 @@ def bd_create(request):
 
     result = concatenate(DataFrames)
     # result.to_csv('result.csv', index = False)
-
     # Получаем датафрейм для текущей бд
-    dfs = delayed(pd.read_csv(filepath_csv_bd, on_bad_lines='skip', encoding_errors='ignore', header=0, dtype=dtypes, sep=delimetr(filepath_csv_bd)))
-    raw_data = df1.from_delayed(dfs)
-    Bdcsv = raw_data.compute()
+    # with open('mediafiles/csv/data.pickle', 'rb') as f:
+    #     Bdcsv = pickle.load(f)
+    # dfs = delayed(pd.read_csv(filepath_csv_bd, on_bad_lines='skip', encoding_errors='ignore', header=0, dtype=dtypes, sep=delimetr(filepath_csv_bd)))
+    # raw_data = df1.from_delayed(dfs)
+    # Bdcsv = raw_data.compute()
 
-    
+
     # Соединяем нашу бд с новыми загруженными прайсами
-    Oldbd_newprice_arr = [result,Bdcsv]
+    try:
+        Bd = pq.read_table('mediafiles/parquet/data.parquet')
+        Bddf = Bd.to_pandas()
+        Oldbd_newprice_arr = [result,Bddf]
+    except:
+        Oldbd_newprice_arr = [result]
+    
 
+
+    # Обновляем бд!
     BdupdateDF = concatenate(Oldbd_newprice_arr)
-
-    # print(BdupdateDF)
-
     FULL = Dfilter(BdupdateDF)
-
 
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -362,6 +384,12 @@ def price_upload(request):
         else:
             object_list = OriginallBD.objects.filter(pk=1)    
 
+
+    try:
+        lenPrice = AddFiles.objects.all().count()
+    except:
+        lenPrice = None    
+
     try:
         len = OriginallBD.objects.all().count()
     except:
@@ -384,7 +412,8 @@ def price_upload(request):
         'brands':brands,
         'BD':object_list,
         'len':len,
-        'notation':notation
+        'notation':notation,
+        'lenPrice':lenPrice
     }
           
     return render(request, "upload.html", context)

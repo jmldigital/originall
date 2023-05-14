@@ -1,5 +1,8 @@
 import pandas as pd
 import numpy as np
+import pickle
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 def Dfilter(dataframe):
         # Убираем полные дубликаты из общего фрейма
@@ -40,6 +43,14 @@ def Dfilter(dataframe):
 
         # проверяем если объем меньше массы
         FULL.loc[FULL['volume_field'] < FULL['weight_field'], 'volume_field'] = 0
-        FULL.to_csv('mediafiles/csv/FULL.csv', index = False)
+
+
+        table = pa.Table.from_pandas(FULL, preserve_index=False)
+        pq.write_table(table, 'mediafiles/parquet/data.parquet')
+
+        # with open('mediafiles/csv/data.pickle', 'wb') as f:
+        #     pickle.dump(FULL, f)
+
+        # FULL.to_csv('mediafiles/csv/FULL.csv', index = False)
 
         return FULL

@@ -50,7 +50,7 @@ $(document).ready(function() {
                 </thead>
                 <tbody>
                     {% for file in files %}
-                    <tr class="post-{{file.pk}}">
+                    <tr id="rowID" class="post-{{file.pk}}">
                         <td class="text-center"> {{ file.files }} </td>
                         <td class="text-center"> {{ file.brend_field }} </td> 
                         <td class="text-center"> {{ file.currency_field }} </td>                
@@ -109,7 +109,10 @@ $(document).ready(function() {
         <button type="Submit" class=" bg-blue-500 hover:bg-blue-600 px-3 py-3 mt-7 text-white rounded-md color-white" name="btnform2"> Добавить прайс</button> 
         </form>
 
-        <a href="{% url 'bd-create' %}" class="inline-flex text-white bg-red-500 border-0 py-2 px-6 focus:outline-none hover:bg-indigo-600 rounded text-lg" style="height:50px;"> Создать Базу </a>
+        {% if lenPrice %}
+            <a id ='bdcreatebutton' href="{% url 'bd-create' %}" class="inline-flex text-white bg-red-500 border-0 py-2 px-6 focus:outline-none hover:bg-indigo-600 rounded text-lg" style="height:50px;"> Обновить БД </a>
+        {% endif %}
+
     </div>
        <!---- ------- конец прайсов------------------------ -->
 
