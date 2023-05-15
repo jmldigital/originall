@@ -181,7 +181,7 @@ def converter(file,dfcolumns):
                 raw_data['brend_field'] = OneFile.brend_field
                 raw_data['brend_field'] = raw_data['brend_field'].astype('category')
         else:
-            raw_data = pd.read_excel(file, usecols=dic.keys(), engine = engine_xls, dtype={get_key('name_field',dic):'category',get_key('brend_field',dic):'category'})
+            raw_data = pd.read_excel(file, usecols=dic.keys(), engine = engine_xls)
         
    
         tt=raw_data.rename(columns = dic)

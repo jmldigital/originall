@@ -165,7 +165,9 @@ def download(request):
 
     filename =os.listdir(filepath_price)[0]
     filepath = filepath_price +'/'+ filename
-    path = open(filepath, 'r', encoding="utf8")
+
+    path = open(filepath, 'rb')
+
     mime_type, _ = mimetypes.guess_type(filepath)
     response = HttpResponse(path, content_type=mime_type)
     s = "attachment; filename=%s" % filename
