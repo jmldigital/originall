@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from pandas.api.types import union_categoricals
 import os.path, shutil
+import chardet
 
 def get_key(val,dic):
     for key, value in dic.items():
@@ -17,16 +18,23 @@ def get_key(val,dic):
             return key
     return "key doesn't exist"
 
+
+def decoder(file):
+    enc = chardet.detect(open(file, 'rb').read())
+    # print(enc['encoding'])
+    return enc['encoding']
+
+
 fields = {
 'oem_field':['код','Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
-'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд'],
-'name_field':['Название','detailname','titel','title','название','bezde','Наименование'],
+'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд','фирма'],
+'name_field':['Название','detailname','titel','title','название','bezde','Наименование','Наименование товара'],
 'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
 'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
 fields_add = {
-'price_field':['price','cost','preis','цена','стоимость','DetailPrice'],
-'quantity_field':['volume','menge','quantity','кол-во','количество','min','PackQuantity','мин'],
+'price_field':['price','cost','preis','цена','стоимость','DetailPrice','руб'],
+'quantity_field':['volume','menge','quantity','кол-во','количество','min','PackQuantity','мин','остаток'],
  }
 
 fields_price = fields | fields_add
@@ -63,9 +71,11 @@ def cleaner(string):
     return reg.sub('', string)
 
 def delimetr(file):
-    if type(file) == str:
-        # print('загружаем из бд',file,type(file))
-        file_path = file
+    key = file.split('/')[1]
+    OneFile = AddFiles.objects.get(files=key)
+    # print('загружаем из бд',file,type(file))
+    file_path = file
+    if OneFile.currency_field != 'рубль':
         try:
             file.split(".")[2]
             # print('extantions',file.split(".")[2])
@@ -76,12 +86,17 @@ def delimetr(file):
             # print('extantions',file.split(".")[1])
             file= open(file_path, 'r', errors='ignore')
             first_line = file.readline()
-
     else:
-        # print('загружаем из аплоадера',file,type(file))
-        first = file.readline()
-        first_line = first.decode('utf-8')
-        file.seek(0)
+        try:
+            file.split(".")[2]
+            # print('extantions',file.split(".")[2])
+            file = gzip.open(file, 'rb')
+            first_line = next(file).decode('utf-8')
+
+        except: 
+            # print('extantions',file.split(".")[1])
+            file= open(file_path, 'r', encoding=decoder(file))
+            first_line = file.readline()
     
     # print('first_line',first_line)
     match = re.search(r'(\W+)', first_line)
@@ -116,14 +131,31 @@ def heders_xls(file,fields):
 def heders(file,fields,delim):
     arr={}
 # получаем заголовки из прайсов
-    try:
-        with open(file, 'r') as f:
-            first_line = next(f).strip()
-            header_list = first_line.split(delim)
-    except:
-        with gzip.open(file, 'rb') as f:
-            first_line = next(f).strip()
-            header_list = first_line.decode("utf-8").split(delim)
+    key = file.split('/')[1]
+    OneFile = AddFiles.objects.get(files=key)
+    # print('OneFile.currency_field',OneFile.currency_field)
+  
+    if OneFile.currency_field != 'рубль':
+        try:
+            with open(file, 'r') as f:
+                first_line = next(f).strip()
+                header_list = first_line.split(delim)
+        except:
+            with gzip.open(file, 'rb') as f:
+                first_line = next(f).strip()
+                header_list = first_line.decode("utf-8").split(delim)
+
+    else:
+        try:
+            with open(file, 'r',encoding=decoder(file)) as f:
+                first_line = next(f).strip()
+                header_list = first_line.split(delim)
+                # print('пытаемся открыть csv',header_list)
+        except:
+            with gzip.open(file, 'rb') as f:
+                # print('пытаемся открыть gzip')
+                first_line = next(f).strip()
+                header_list = first_line.decode("utf-8").split(delim)
 
 
     for key in fields.keys():
@@ -139,6 +171,18 @@ def heders(file,fields,delim):
     NewTitle = {v:k for k, v in arr.items()}
     # print('title',NewTitle)
     return NewTitle
+
+
+# def reader (ext,file,cols,types,mono,engine):
+
+
+
+
+#     xls = {'engine_xls':None,
+#            cols:heders_xls(file,fields).keys(),
+#            mono:True,
+#            types:dtypes
+#            }
 
 
 def converter(file,dfcolumns):
@@ -204,6 +248,8 @@ def converter(file,dfcolumns):
         else:
             ts['volume_field'] = ts['volume_field'].str.replace(',', '.').astype('float64')
 
+
+
         ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)]
 
         new = ta.loc[~ta["name_field"].str.upper().isin(words_up)]
@@ -237,9 +283,14 @@ def converter(file,dfcolumns):
                 raw_data['brend_field'] = OneFile.brend_field
                 raw_data['brend_field'] = raw_data['brend_field'].astype('category')
             else:
-                dfs = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes, sep=delimetr(file)))
-                raw_data = df1.from_delayed(dfs)            
+                if OneFile.currency_field != 'рубль':
+                    dfs = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes, sep=delimetr(file)))
+                    raw_data = df1.from_delayed(dfs)
+                else:            
+                    dfs = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes, encoding=decoder(file), sep=delimetr(file)))
+                    raw_data = df1.from_delayed(dfs)
 
+            # print('raw_data',raw_data)
 
             tt=raw_data.rename(columns = dic)
             ts= tt.dropna(subset=['name_field', "brend_field"])
@@ -272,4 +323,3 @@ def converter(file,dfcolumns):
             print("Read with dask: utf-8 ", (e_time_dask-s_time_dask), "seconds")
 
     return new   
-
