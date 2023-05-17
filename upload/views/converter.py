@@ -28,7 +28,7 @@ def decoder(file):
 fields = {
 'oem_field':['код','Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
 'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд','фирма'],
-'name_field':['Название','detailname','titel','title','название','bezde','Наименование','Наименование товара'],
+'name_field':['Название','detailname','titel','title','название','bezde','Наименование','Наименование товара','Номенклатура'],
 'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
 'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
@@ -196,10 +196,12 @@ def converter(file,dfcolumns):
 
     
     try:
-        extension = file.split(".")[1]
+        extension = file.split(".")[-1]
     except:
-        extension = cleaner(os.path.splitext(file.name)[1])
-    
+        extension = cleaner(os.path.splitext(file.name)[-1])
+
+    print('extension',extension)
+
     if (extension == 'xls') or (extension == 'xlsx'):
 
         dic=heders_xls(file,dfcolumns)
@@ -258,7 +260,7 @@ def converter(file,dfcolumns):
         new['brend_field'] = new['brend_field'].str.lower()
 
 
-    if (extension == 'txt') or (extension == 'csv'): 
+    if (extension == 'txt') or (extension == 'csv') or (extension == 'gz'): 
 
         dic=heders(file,dfcolumns,delimetr(file))
 

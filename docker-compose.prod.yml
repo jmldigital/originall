@@ -8,7 +8,6 @@ services:
     command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000 --timeout 2100
     volumes:
       - static_volume:/usr/src/app/staticfiles/
-      - media_volume:/usr/src/app/mediafiles/
       - type: bind
         source: ./mediafiles/
         target: /usr/src/app/mediafiles/  
