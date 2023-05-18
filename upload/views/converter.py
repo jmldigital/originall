@@ -241,7 +241,6 @@ class PriceDf:
         words_up=list(map(str.upper, words))
         brands = Brands.objects.values_list('brand', flat=True).distinct()
         brands_low = list(map(str.lower, brands))
-        brands_up = list(map(str.upper, brands))
 
  
         # key = file.split('/')[-1]
@@ -284,25 +283,17 @@ class PriceDf:
 
             if (self.ext == 'xls') or (self.ext == 'xlsx'):
 
-                # print('new-before',ts)
-                ts["brend_field"] = ts["brend_field"].astype(str)
-                ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)]
+                ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)]
                 ta["oem_field"] = ta["oem_field"].astype(str)
             else:
-                ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)].compute()
-
-
+                ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)].compute()
 
             new = ta[~ta["name_field"].str.upper().isin(words_up)]
 
-            new['brend_field'] = new['brend_field'].str.upper()
-            new['brend_field'] = new['brend_field'].astype('category')
-            new['name_field'] = new['name_field'].astype('category')
-            
+            new['brend_field'] = new['brend_field'].str.lower()
             e_time_dask = time.time()
 
-
-        # print('new-after',ts)
+        
 
         print("читаем файл ",key, (e_time_dask-s_time_dask), "seconds")
         return new
