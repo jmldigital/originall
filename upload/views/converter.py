@@ -81,7 +81,10 @@ class PriceDf:
 
         self.ext = file.split(".")[-1]
         key = file.split('/')[1]
-        OnePrice = AddFiles.objects.get(files=key)
+        try:
+            OnePrice = AddFiles.objects.get(files=key)
+        except:
+            pass
         self.cur = OnePrice.currency_field
         self.mono = OnePrice.is_mono
         self.headers = self.get_headers_method(file)

@@ -27,8 +27,10 @@ RUN pip install pandas
 # copy entrypoint.sh
 COPY ./entrypoint.prod.sh .
 RUN sed -i 's/\r$//g' /usr/src/app/entrypoint.prod.sh
-RUN chmod ugo+x ./entrypoint.prod.sh
-
+RUN chmod ugo+x /usr/src/app/entrypoint.prod.sh
+RUN mkdir /usr/src/app/mediafiles
+RUN mkdir /usr/src/app/mediafiles/prices
+RUN mkdir /usr/src/app/mediafiles/csv
 
 # copy project
 COPY . .
