@@ -277,6 +277,7 @@ def bd_create(request):
         Bd = pq.read_table('mediafiles/parquet/data.parquet')
         Bddf = Bd.to_pandas()
 
+        Bddf["name_field"] = Bddf["name_field"].str.upper()
         Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
         Oldbd_newprice_arr = [result,Bddf_w]
     except:

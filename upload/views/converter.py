@@ -80,11 +80,10 @@ class PriceDf:
         
 
         self.ext = file.split(".")[-1]
-        key = file.split('/')[1]
-        try:
-            OnePrice = AddFiles.objects.get(files=key)
-        except:
-            pass
+        key = file.split('/')[-1]
+
+        OnePrice = AddFiles.objects.get(files=key)
+
         self.cur = OnePrice.currency_field
         self.mono = OnePrice.is_mono
         self.headers = self.get_headers_method(file)
@@ -265,6 +264,7 @@ class PriceDf:
     def get_clean(self,file):
             
         words = StopWords.objects.values_list('words', flat=True).distinct()
+        wordsdefalt = list(words) 
         words_up=list(map(str.upper, words))
         brands = Brands.objects.values_list('brand', flat=True).distinct()
         brands_low = list(map(str.lower, brands))
@@ -318,15 +318,11 @@ class PriceDf:
             else:
                 ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)].compute()
 
-            new = ta[~ta["name_field"].str.upper().isin(words_up)]
 
+            ta["name_field"] = ta["name_field"].str.upper()
             new = ta[~ta["name_field"].str.contains('|'.join(words_up))]
             
-            # ddd = ta["name_field"][s.str.upper().contains('|'.join(words_up))]
-
-            # print(ta)
-
-            # new = ta[~ta["name_field"].str.upper().isin(words_up)]
+            # new.to_csv('mediafiles/csv/words.csv', index = False)
 
             new['brend_field'] = new['brend_field'].str.upper()
             #изза этого крашится при заполнении новой дб, Exception Value:Length of values (998) does not match length of index (101706
