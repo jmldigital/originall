@@ -11,6 +11,7 @@ import numpy as np
 from pandas.api.types import union_categoricals
 import os.path, shutil
 import chardet
+from openpyxl import load_workbook
 
 def get_key(val,dic):
     for key, value in dic.items():
@@ -26,15 +27,15 @@ def decoder(file):
 
 
 fields = {
-'oem_field':['код','Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
-'brend_field':['Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд','фирма'],
-'name_field':['Название','detailname','titel','title','название','bezde','Наименование','Наименование товара','Номенклатура'],
-'weight_field':['Вес', 'weight','вес','кг','WeightKG'],
-'volume_field':['Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
+'oem_field':[1,'1','код','Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
+'brend_field':[3,'3','Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд','фирма'],
+'name_field':[2,'2','Название','detailname','titel','title','название','bezde','Наименование','Наименование товара','Номенклатура'],
+'weight_field':[6,'6','Вес', 'weight','вес','кг','WeightKG'],
+'volume_field':['7,7','Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
 
 fields_add = {
-'price_field':['price','cost','preis','цена','стоимость','DetailPrice','руб'],
-'quantity_field':['volume','menge','quantity','кол-во','количество','min','PackQuantity','мин','остаток'],
+'price_field':[5,'5','price','cost','preis','цена','стоимость','DetailPrice','руб'],
+'quantity_field':[4,'4','volume','menge','quantity','кол-во','количество','min','PackQuantity','мин','остаток'],
  }
 
 fields_price = fields | fields_add
@@ -60,10 +61,10 @@ def concatenate(dfs):
 
 def lowercomapre(list1,list2):
     dif=''
-    d = [x.lower() for x in list1] # make dict of list with less elements  
+    d = [str(x).lower() for x in list1] # make dict of list with less elements  
     for m in list2:  # search against bigger list  
-        if m.lower() in d: 
-            dif = m
+        if str(m).lower() in d: 
+            dif = str(m)
     return dif
 
 def cleaner(string):
@@ -222,7 +223,30 @@ class PriceDf:
 
 
     def get_exel_df(self,file):
-        data = pd.read_excel(file, usecols=self.get_usecols().keys(), engine = self.get_exel_engine())
+        app=[]
+        usercols=self.get_usecols().keys()
+        # print('self.get_usecols()',self.get_usecols())
+        # print('self.get_fields()',self.get_fields())
+        
+
+        try:
+            # print('usercols-str',usercols)
+            data = pd.read_excel(file, usecols=usercols, engine = self.get_exel_engine())
+        except:
+            for key in list(usercols):
+                # print('beffore',type(key))
+                if type(key) == int:
+                    app.append(int(key))
+                else:
+                    app.append(key)
+                # print('after',type(key))
+            # print('usercols-int',app)
+            data = pd.read_excel(file, engine = self.get_exel_engine())
+            data.columns = data.columns.astype("str")
+            data = data[usercols]
+
+            
+
         # print(data)
         return data
     
@@ -241,7 +265,7 @@ class PriceDf:
         words_up=list(map(str.upper, words))
         brands = Brands.objects.values_list('brand', flat=True).distinct()
         brands_low = list(map(str.lower, brands))
-
+        brands_up = list(map(str.upper, brands))
  
         # key = file.split('/')[-1]
         key = os.path.basename(file)
@@ -254,6 +278,7 @@ class PriceDf:
             data = self.get_df_method(file)
             tt=data.rename(columns = self.get_fields())
 
+  
 
 
             if self.mono:
@@ -283,18 +308,25 @@ class PriceDf:
 
             if (self.ext == 'xls') or (self.ext == 'xlsx'):
 
-                ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)]
+                # print('new-before',ts)
+                ts["brend_field"] = ts["brend_field"].astype(str)
+                ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)]
                 ta["oem_field"] = ta["oem_field"].astype(str)
             else:
-                ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)].compute()
+                ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)].compute()
+
+
 
             new = ta[~ta["name_field"].str.upper().isin(words_up)]
 
-            new['brend_field'] = new['brend_field'].str.lower()
+            new['brend_field'] = new['brend_field'].str.upper()
+            #изза этого крашится при заполнении новой дб, Exception Value:Length of values (998) does not match length of index (101706
+            # new['brend_field'] = new['brend_field'].astype('category')
+            # new['name_field'] = new['name_field'].astype('category')
             e_time_dask = time.time()
 
         
-
+        # print(new)
         print("читаем файл ",key, (e_time_dask-s_time_dask), "seconds")
         return new
 
