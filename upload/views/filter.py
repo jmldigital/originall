@@ -25,6 +25,8 @@ def Dfilter(dataframe):
         dub_oem_null = dub_oem[(dub_oem[['oem_field']].duplicated(keep=False)) & ((dub_oem['weight_field'] == 0) | (dub_oem['volume_field'] == 0)) ]
         # dub_oem_null.to_csv('dub_oem_null.csv', index = False)
 
+        # print(dub_oem_null)
+
         # Мерджим между собой дубликаты с одним из заполненных полей
         group_null_merdge = dub_oem_null.groupby(by=['oem_field','brend_field'],as_index=False).agg({'name_field': 'first','weight_field': 'max','volume_field': 'max','brend_field': 'first'})
         # group_null_merdge.to_csv('mediafiles/csv/group_null_merdge.csv', index = False)

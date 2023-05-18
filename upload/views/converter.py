@@ -70,232 +70,200 @@ def cleaner(string):
     reg = re.compile('[^a-zA-Z ]')
     return reg.sub('', string)
 
-def delimetr(file):
-    key = file.split('/')[1]
-    OneFile = AddFiles.objects.get(files=key)
-    # print('загружаем из бд',file,type(file))
-    file_path = file
-    if OneFile.currency_field != 'рубль':
-        try:
-            file.split(".")[2]
-            # print('extantions',file.split(".")[2])
-            file = gzip.open(file, 'rb')
-            first_line = next(file).decode('utf-8')
 
-        except: 
-            # print('extantions',file.split(".")[1])
-            file= open(file_path, 'r', errors='ignore')
-            first_line = file.readline()
-    else:
-        try:
-            file.split(".")[2]
-            # print('extantions',file.split(".")[2])
-            file = gzip.open(file, 'rb')
-            first_line = next(file).decode('utf-8')
 
-        except: 
-            # print('extantions',file.split(".")[1])
-            file= open(file_path, 'r', encoding=decoder(file))
-            first_line = file.readline()
+class PriceDf:
+
+    # Способ создания объекта (конструктор)
+    def __init__(self, file):   
+        
+
+        self.ext = file.split(".")[-1]
+        key = file.split('/')[1]
+        OnePrice = AddFiles.objects.get(files=key)
+        self.cur = OnePrice.currency_field
+        self.mono = OnePrice.is_mono
+        self.headers = self.get_headers_method(file)
+        # self.encoding = self.get_encoding_method(file)
+        self.fields = fields
+        # self.usercol = self.get_usecols().keys()
+        # self.dtypes = self.get_dtypes()
+        # self.clean = self.get_clean(file,fields)
+        # print("входные", self.fields)
+
+
+    def get_headers_method(self,file):
+        if self.ext == 'gz':
+            headers_method = self.get_heders_gzip(file)
+        if self.ext == 'csv':
+            headers_method = self.get_heders(file)    
+        if self.ext == 'txt':
+            headers_method = self.get_heders(file)
+        if self.ext == 'xls':
+            headers_method = self.get_heders_xls(file)
+        if self.ext == 'xlsx':
+            headers_method = self.get_heders_xls(file)
+        return headers_method
     
-    # print('first_line',first_line)
-    match = re.search(r'(\W+)', first_line)
 
-    if match.group(0) =='\t':
-        delim = '\t'
-        # print("разделитель таб",delim)
-    else:
-        delim =match.group(0)
-        # print("разделитель:",delim) 
-    return delim
-
-
-# заголовки для файлов экселя
-def heders_xls(file,fields):
-    arr={}
-# получаем заголовки из прайсов
-    header_list = pd.read_excel(file).columns
-    for key in fields.keys():
-        result=lowercomapre(fields[key],header_list)
-        arr[key] = result
-       
-    for key in arr.copy():
-        if not arr[key]:
-            arr.pop(key)
-    #Переименовываем заголовки фрейма на наши
-    NewTitle = {v:k for k, v in arr.items()}
-    # print('title',NewTitle)
-    return NewTitle
-
-# заголовки для csv и txt файлов
-def heders(file,fields,delim):
-    arr={}
-# получаем заголовки из прайсов
-    key = file.split('/')[1]
-    OneFile = AddFiles.objects.get(files=key)
-    # print('OneFile.currency_field',OneFile.currency_field)
-  
-    if OneFile.currency_field != 'рубль':
-        try:
-            with open(file, 'r') as f:
-                first_line = next(f).strip()
-                header_list = first_line.split(delim)
-        except:
-            with gzip.open(file, 'rb') as f:
-                first_line = next(f).strip()
-                header_list = first_line.decode("utf-8").split(delim)
-
-    else:
-        try:
-            with open(file, 'r',encoding=decoder(file)) as f:
-                first_line = next(f).strip()
-                header_list = first_line.split(delim)
-                # print('пытаемся открыть csv',header_list)
-        except:
-            with gzip.open(file, 'rb') as f:
-                # print('пытаемся открыть gzip')
-                first_line = next(f).strip()
-                header_list = first_line.decode("utf-8").split(delim)
+    def get_encoding_method(self,file):
+        if self.cur == 'рубль':
+            encoding_method = decoder(file)
+        if self.cur == 'доллар':
+            encoding_method = None
+        if self.cur == 'евро':
+            encoding_method = None           
+        return encoding_method
 
 
-    for key in fields.keys():
-        result=lowercomapre(fields[key],header_list)
-        arr[key] = result
+    def get_delim_method(self,file):
+        if self.ext == 'gz':
+            delim_method = self.get_delim_gzip(file)
+        else:
+            delim_method = self.get_delim(file)
+        return delim_method
+    
+
+    def get_delim_gzip(self,file):
+        file = gzip.open(file, 'rb')
+        first_line = next(file).decode('utf-8')
+        match = re.search(r'(\W+)', first_line)
+        if match.group(0) =='\t':
+            delim = '\t'
+            # print("разделитель таб",delim)
+        else:
+            delim =match.group(0)
+            # print("разделитель у гзипа:",delim) 
+        return delim 
     
     
-    for key in arr.copy():
-        if not arr[key]:
-            arr.pop(key)
+    def get_delim(self,file):   
+        file = open(file, 'r', errors='ignore', encoding=self.get_encoding_method(file))
+        first_line = file.readline()
+        match = re.search(r'(\W+)', first_line)
+        if match.group(0) =='\t':
+            delim = '\t'
+            # print("разделитель таб",delim)
+        else:
+            delim =match.group(0)
+            # print("разделитель у csv:",delim) 
+        return delim 
     
-    #Переименовываем заголовки фрейма на наши
-    NewTitle = {v:k for k, v in arr.items()}
-    # print('title',NewTitle)
-    return NewTitle
-
-
-# def reader (ext,file,cols,types,mono,engine):
-
-
-
-
-#     xls = {'engine_xls':None,
-#            cols:heders_xls(file,fields).keys(),
-#            mono:True,
-#            types:dtypes
-#            }
-
-
-def converter(file,dfcolumns):
-    key = file.split('/')[1]
-    OneFile = AddFiles.objects.get(files=key)
-
-    words = StopWords.objects.values_list('words', flat=True).distinct()
-    words_up=list(map(str.upper, words))
-    brands = Brands.objects.values_list('brand', flat=True).distinct()
-    brands_low = list(map(str.lower, brands))
-
     
-    try:
-        extension = file.split(".")[-1]
-    except:
-        extension = cleaner(os.path.splitext(file.name)[-1])
+    def get_heders(self,file): 
+        with open(file, 'r',encoding=self.get_encoding_method(file)) as f:
+            first_line = next(f).strip()
+            delim = self.get_delim(file)
+            header_list = first_line.split(delim)
+            # print('header_list у csv',header_list)
+            return header_list      
 
-    print('extension',extension)
 
-    if (extension == 'xls') or (extension == 'xlsx'):
+    def get_heders_gzip(self,file): 
+        with gzip.open(file, 'rb') as f:
+            first_line = next(f).strip()
+            delim = self.get_delim_gzip(file)
+            header_list = first_line.decode('utf-8').split(delim)
+            # print('header_list у г зипа',header_list)
+            return header_list
+        
 
-        dic=heders_xls(file,dfcolumns)
+    def get_heders_xls(self,file): 
+            header_list = pd.read_excel(file).columns
+            return header_list
+    
 
-        dtypes ={get_key('brend_field',dic):'category',
+    def get_fields(self): 
+        arr={}
+        for key in self.fields.keys():
+            result=lowercomapre(self.fields[key],self.headers)
+            arr[key] = result       
+        for key in arr.copy():
+            if not arr[key]:
+                arr.pop(key)
+        #Переименовываем заголовки фрейма на наши
+        NewTitle = {v:k for k, v in arr.items()}
+        # print('title первонах',NewTitle)
+        return NewTitle
+
+    def get_usecols(self):
+        usecols=self.get_fields()
+        # print('usecols',usecols)
+        return usecols
+
+    def get_dtypes(self):
+        dic = self.get_usecols()
+        if self.mono:
+            dtypes={
             get_key('name_field',dic):'category',
             get_key('oem_field',dic):'object'
+            }
+        else: 
+            dtypes ={get_key('brend_field',dic):'category',
+                     get_key('name_field',dic):'category',
+                     get_key('oem_field',dic):'object'
                 }
-        
-        dtypes_mono ={
-            get_key('name_field',dic):'category',
-            get_key('oem_field',dic):'object'
-            }  
+        return dtypes
+    
 
-        if extension == 'xls':
-            engine_xls=None
-        if extension == 'xlsx':
-            engine_xls='openpyxl'
+    def get_exel_engine(self):
+        if self.ext == 'xls':
+            engine_xls = None
+        if self.ext == 'xlsx':
+            engine_xls = "openpyxl"
+        return engine_xls
 
 
-        if OneFile.is_mono:
-                raw_data = pd.read_excel(file, usecols=dic.keys(), engine = engine_xls, dtype=dtypes_mono)
-                raw_data['brend_field'] = OneFile.brend_field
-                raw_data['brend_field'] = raw_data['brend_field'].astype('category')
+    def get_dask_df(self,file):
+        dask = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, encoding=self.get_encoding_method(file), usecols=self.get_usecols().keys(), dtype=self.get_dtypes(), sep=self.get_delim_method(file)))
+        data = df1.from_delayed(dask)
+        return data
+    
+
+
+    def get_exel_df(self,file):
+        data = pd.read_excel(file, usecols=self.get_usecols().keys(), engine = self.get_exel_engine())
+        # print(data)
+        return data
+    
+    
+    def get_df_method(self,file):
+        if (self.ext == 'xls') or (self.ext == 'xlsx'):
+            df_method = self.get_exel_df(file)
         else:
-            raw_data = pd.read_excel(file, usecols=dic.keys(), engine = engine_xls)
-        
-   
-        tt=raw_data.rename(columns = dic)
-        ts= tt.dropna(subset=['name_field', "brend_field"])
-        if 'volume_field' in ts.columns.tolist():
-            pass
-        else:
-            ts['volume_field'] = 0
-        if 'weight_field' in ts.columns.tolist():
-            pass
-        else:
-            ts['weight_field'] = 0
-        if (ts['weight_field'].dtype == np.float64 or ts['weight_field'].dtype == np.int64):
-            pass
-        else:
-            ts['weight_field'] = ts['weight_field'].str.replace(',', '.').astype('float64')
+            df_method = self.get_dask_df(file)
+        return df_method
+    
 
-        if (ts['volume_field'].dtype == np.float64 or ts['volume_field'].dtype == np.int64):
-            pass
-        else:
-            ts['volume_field'] = ts['volume_field'].str.replace(',', '.').astype('float64')
+    def get_clean(self,file):
+            
+        words = StopWords.objects.values_list('words', flat=True).distinct()
+        words_up=list(map(str.upper, words))
+        brands = Brands.objects.values_list('brand', flat=True).distinct()
+        brands_low = list(map(str.lower, brands))
 
-
-
-        ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)]
-
-        new = ta.loc[~ta["name_field"].str.upper().isin(words_up)]
-
-        new['oem_field'] = new['oem_field'].astype(str)      
-        new['brend_field'] = new['brend_field'].str.lower()
-
-
-    if (extension == 'txt') or (extension == 'csv') or (extension == 'gz'): 
-
-        dic=heders(file,dfcolumns,delimetr(file))
-
-        dtypes ={get_key('brend_field',dic):'category',
-            get_key('name_field',dic):'category',
-            get_key('oem_field',dic):'object'
-                }
-        
-        dtypes_mono ={
-            get_key('name_field',dic):'category',
-            get_key('oem_field',dic):'object'
-            }  
+ 
+        # key = file.split('/')[-1]
+        key = os.path.basename(file)
+        print('название фйла',key)
+        OnePrice = AddFiles.objects.get(files=key)
 
         with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
             s_time_dask = time.time()
+            
+            data = self.get_df_method(file)
+            tt=data.rename(columns = self.get_fields())
 
-            if OneFile.is_mono:
-                # print('usecols',dic.keys())
-                dfs = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes_mono, sep=delimetr(file)))
-                raw_data = df1.from_delayed(dfs)
-                # print('this is raw_data',raw_data)
-                raw_data['brend_field'] = OneFile.brend_field
-                raw_data['brend_field'] = raw_data['brend_field'].astype('category')
+
+
+            if self.mono:
+                tt['brend_field'] = OnePrice.brend_field
+                tt['brend_field'] = tt['brend_field'].astype('category')
             else:
-                if OneFile.currency_field != 'рубль':
-                    dfs = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes, sep=delimetr(file)))
-                    raw_data = df1.from_delayed(dfs)
-                else:            
-                    dfs = delayed(pd.read_csv(file, on_bad_lines='skip', encoding_errors='ignore', header=0, usecols=dic.keys(), dtype=dtypes, encoding=decoder(file), sep=delimetr(file)))
-                    raw_data = df1.from_delayed(dfs)
+                pass
 
-            # print('raw_data',raw_data)
-
-            tt=raw_data.rename(columns = dic)
             ts= tt.dropna(subset=['name_field', "brend_field"])
+
             if 'volume_field' in ts.columns.tolist():
                 pass
             else:
@@ -313,15 +281,22 @@ def converter(file,dfcolumns):
             else:
                 ts['volume_field'] = ts['volume_field'].str.replace(',', '.').astype('float64')
 
-            ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)].compute()
+            if (self.ext == 'xls') or (self.ext == 'xlsx'):
+
+                ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)]
+                ta["oem_field"] = ta["oem_field"].astype(str)
+            else:
+                ta = ts.loc[ts["brend_field"].str.lower().isin(brands_low)].compute()
 
             new = ta[~ta["name_field"].str.upper().isin(words_up)]
 
             new['brend_field'] = new['brend_field'].str.lower()
             e_time_dask = time.time()
 
-            # print(new)
 
-            print("Read with dask: utf-8 ", (e_time_dask-s_time_dask), "seconds")
+        s = '555'
+        print('пробуем',s.lower())
 
-    return new   
+        print("читаем файл ",key, (e_time_dask-s_time_dask), "seconds")
+        return new
+

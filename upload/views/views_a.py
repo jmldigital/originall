@@ -20,10 +20,11 @@ from pandas import read_sql_query
 from django.db.models import Q
 from django.conf import settings
 from django.views import generic
-from upload.views.converter import converter, fields,fields_price, concatenate,delimetr
+from upload.views.converter import fields,fields_price, concatenate,PriceDf
 from upload.views.filter import Dfilter
 from dask.delayed import delayed
 from dask import dataframe as df1
+from pathlib import Path
 
 # from pyheat import PyHeat
 # from line_profiler import LineProfiler
@@ -84,15 +85,31 @@ def price_create(request, id=None):
         except Exception as e:
             print('Failed to delete %s. Reason: %s' % (file_path, e))
 
-    pricefulldf = converter("mediafiles/"+price,fields_price)
+
+    file = str(Mediafiles)+'/'+price
+    prdf = PriceDf(file)
+    prdf.fields=fields_price
+    # print('prdf.fields',prdf.fields)
+    pricefull = prdf.get_clean(file)
+
+    # print('pricefulldf',pricefull)
+
+    priceful= pricefull.dropna(subset=['price_field'])
+
+    pricefulldf= priceful.dropna(subset=['quantity_field'])
+
     BDdf = pd.read_sql_query('select * from "upload_originallbd"',con=engine)
     BDdf.drop('id', axis= 1 , inplace= True )
+
+    # print('BDdf',BDdf)
 
 # фильтруем по минимальному пакеджу в доставке прайсовый датафрейм
     if Curency != 'рубль':
         pricefulldf = pricefulldf[pricefulldf['quantity_field']==1]
     else:
         pricefulldf = pricefulldf[pricefulldf['quantity_field']!=0]
+
+    # print('pricefulldf',pricefulldf)
 
     pricefulldf['weight_field'] = pricefulldf['weight_field'].astype(float)
 
@@ -139,6 +156,7 @@ def price_create(request, id=None):
         'brend_field':'Brand',
         }, inplace = True )
 
+
   
     pricedf_name = price.split('.')[0]+'_create.csv'
     price_url = filepath_price+'/'+pricedf_name
@@ -146,6 +164,11 @@ def price_create(request, id=None):
     # try:
     #     fin.to_csv(price_url, index = False,encoding='cp1251')
     # except:
+
+    fin = fin[['Nomber', 'Name', 'Brand','Min', 'Price','Weight', 'Volume']]
+
+    # print(fin)
+
     try:
         fin.to_csv(price_url, index = False, encoding='cp1251')
     except:
@@ -224,15 +247,19 @@ def brands_delete(request, id=None):
 
 # @lp
 def bd_create(request):   
-    s_time_dask = time.time()
-    start_time = time.time()
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
     DataFrames = []
     
     for price in prices:
-        pricedf = converter("mediafiles/"+price,fields) 
+
+        file = str(Mediafiles)+'/'+price
+        prdf = PriceDf(file)
+        prdf.fields=fields
+        # print('prdf.fields',prdf.fields)
+        pricedf = prdf.get_clean(file)
         DataFrames.append(pricedf)
+
 
     result = concatenate(DataFrames)
     # result.to_csv('result.csv', index = False)
@@ -242,8 +269,7 @@ def bd_create(request):
     # dfs = delayed(pd.read_csv(filepath_csv_bd, on_bad_lines='skip', encoding_errors='ignore', header=0, dtype=dtypes, sep=delimetr(filepath_csv_bd)))
     # raw_data = df1.from_delayed(dfs)
     # Bdcsv = raw_data.compute()
-
-
+    s_time_dask = time.time()
     # Соединяем нашу бд с новыми загруженными прайсами
     try:
         Bd = pq.read_table('mediafiles/parquet/data.parquet')
@@ -252,7 +278,6 @@ def bd_create(request):
     except:
         Oldbd_newprice_arr = [result]
     
-
 
     # Обновляем бд!
     BdupdateDF = concatenate(Oldbd_newprice_arr)
@@ -271,8 +296,7 @@ def bd_create(request):
 
     e_time_dask = time.time()
 
-    print("calculate df ", (e_time_dask-s_time_dask), "seconds")
-
+    print("итоговый просчет с записью в бд занял ", (e_time_dask-s_time_dask), "секунд")
 
     render(request, "search_results.html")
     return redirect(request.META['HTTP_REFERER'])
