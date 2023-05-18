@@ -269,7 +269,7 @@ class PriceDf:
  
         # key = file.split('/')[-1]
         key = os.path.basename(file)
-        print('название фйла',key)
+        # print('название фйла',key)
         OnePrice = AddFiles.objects.get(files=key)
 
         with ProgressBar(), ResourceProfiler(dt=0.25) as rprof:
@@ -315,9 +315,15 @@ class PriceDf:
             else:
                 ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)].compute()
 
-
-
             new = ta[~ta["name_field"].str.upper().isin(words_up)]
+
+            new = ta[~ta["name_field"].str.contains('|'.join(words_up))]
+            
+            # ddd = ta["name_field"][s.str.upper().contains('|'.join(words_up))]
+
+            # print(ta)
+
+            # new = ta[~ta["name_field"].str.upper().isin(words_up)]
 
             new['brend_field'] = new['brend_field'].str.upper()
             #изза этого крашится при заполнении новой дб, Exception Value:Length of values (998) does not match length of index (101706

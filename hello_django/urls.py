@@ -5,7 +5,7 @@ from django.conf.urls.static import static
 # from upload.views.views_a import *
 
 
-from upload.views.views_a import stop_create,price_upload,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download,BD_delete,BD_update
+from upload.views.views_a import stop_create,price_upload,file_delete,words_delete,brands_create,brands_delete,bd_create,price_create,download,BD_delete,BD_update,stop_words_upload
 
 urlpatterns = [
     path("", price_upload, name="upload"),
@@ -24,7 +24,10 @@ urlpatterns = [
     # path("edit/<int:pk>/", Words_update, name="update"),
     path("bddel/<int:id>/", BD_delete, name="BD-delete"),
     path("admin/", admin.site.urls),
-    path('edit/<int:pk>/', BD_update.as_view(), name='bd-update')
+    path('edit/<int:pk>/', BD_update.as_view(), name='bd-update'),
+    path('stopupload/', stop_words_upload, name='stop-upload')
+
+    
 ]
 
 if bool(settings.DEBUG):

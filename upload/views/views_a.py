@@ -249,6 +249,8 @@ def brands_delete(request, id=None):
 def bd_create(request):   
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
+    words = StopWords.objects.values_list('words', flat=True).distinct()
+    words_up=list(map(str.upper, words))
     DataFrames = []
     
     for price in prices:
@@ -274,14 +276,19 @@ def bd_create(request):
     try:
         Bd = pq.read_table('mediafiles/parquet/data.parquet')
         Bddf = Bd.to_pandas()
-        Oldbd_newprice_arr = [result,Bddf]
+
+        Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
+        Oldbd_newprice_arr = [result,Bddf_w]
     except:
         Oldbd_newprice_arr = [result]
     
 
     # Обновляем бд!
     BdupdateDF = concatenate(Oldbd_newprice_arr)
+
     FULL = Dfilter(BdupdateDF)
+
+
 
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -446,15 +453,32 @@ def price_upload(request):
 
 
 def stop_create(request):
+
+
     form2 = StopWordsForm()
     if request.method == "POST":
         form2 = StopWordsForm(request.POST, request.FILES)
         if form2.is_valid():
             form2.save()
+
             return redirect("create")
     context = {
         "form": form2
     }   
-
     return render(request, "index.html", context)
+
+
+def stop_words_upload(request):
+
+    words = StopWords.objects.values_list('words', flat=True).distinct()
+    words_up=list(map(str.upper, words))
+    stopwords = pd.DataFrame({'stop_words': words_up})
+    
+    stopwords.to_csv('mediafiles/csv/stopwords.csv', index = False)
+
+    context={
+        'notion':'Cтопслова сохранены'
+    }
+
+    return render(request, "stopupload.html", context)
     
