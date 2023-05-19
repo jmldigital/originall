@@ -27,15 +27,15 @@ def decoder(file):
 
 
 fields = {
-'oem_field':[1,'1','код','Номер детали','артикль','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','номер','артикул','DetailNum','ArtikelNr'],
-'brend_field':[3,'3','Производитель','makename','brand','preis','marke','hersteller','производитель','brend_field','бренд','фирма'],
-'name_field':[2,'2','Название','detailname','titel','title','название','bezde','Наименование','Наименование товара','Номенклатура'],
-'weight_field':[6,'6','Вес', 'weight','вес','кг','WeightKG'],
-'volume_field':['7,7','Объем','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG','объем'] }
+'oem_field':[1,'1','artikel','nummer','id','sachnummer','zahl','number','article','nr','num','DetailNum','ArtikelNr'],
+'brend_field':[3,'3','makename','brand','preis','marke','hersteller','brend_field'],
+'name_field':[2,'2','detailname','titel','title','bezde'],
+'weight_field':[6,'6','weight','WeightKG'],
+'volume_field':[7,'7','volume','band','gewicht','umfang','lautstärke','volumen','VolumeKG'] }
 
 fields_add = {
-'price_field':[5,'5','price','cost','preis','цена','стоимость','DetailPrice','руб'],
-'quantity_field':[4,'4','volume','menge','quantity','кол-во','количество','min','PackQuantity','мин','остаток'],
+'price_field':[5,'5','price','cost','preis','DetailPrice'],
+'quantity_field':[4,'4','volume','menge','quantity','min','PackQuantity'],
  }
 
 fields_price = fields | fields_add
@@ -63,7 +63,7 @@ def lowercomapre(list1,list2):
     dif=''
     d = [str(x).lower() for x in list1] # make dict of list with less elements  
     for m in list2:  # search against bigger list  
-        if str(m).lower() in d: 
+         if str(m).lower() in d: 
             dif = str(m)
     return dif
 
@@ -267,7 +267,6 @@ class PriceDf:
         wordsdefalt = list(words) 
         words_up=list(map(str.upper, words))
         brands = Brands.objects.values_list('brand', flat=True).distinct()
-        brands_low = list(map(str.lower, brands))
         brands_up = list(map(str.upper, brands))
  
         # key = file.split('/')[-1]
@@ -281,14 +280,13 @@ class PriceDf:
             data = self.get_df_method(file)
             tt=data.rename(columns = self.get_fields())
 
-  
-
-
             if self.mono:
                 tt['brend_field'] = OnePrice.brend_field
                 tt['brend_field'] = tt['brend_field'].astype('category')
             else:
                 pass
+
+            # print(tt)
 
             ts= tt.dropna(subset=['name_field', "brend_field"])
 

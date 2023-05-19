@@ -90,13 +90,17 @@ def price_create(request, id=None):
     prdf = PriceDf(file)
     prdf.fields=fields_price
     # print('prdf.fields',prdf.fields)
-    pricefull = prdf.get_clean(file)
+    pricefulldf = prdf.get_clean(file)
 
     # print('pricefulldf',pricefull)
 
-    priceful= pricefull.dropna(subset=['price_field'])
+    pricefulldf.dropna(subset=['price_field'],inplace=True)
+    pricefulldf.dropna(subset=['quantity_field'],inplace=True)
 
-    pricefulldf= priceful.dropna(subset=['quantity_field'])
+
+       
+    # pricefulldf.to_csv('mediafiles/csv/pricefulldf.csv', index = False)
+
 
     BDdf = pd.read_sql_query('select * from "upload_originallbd"',con=engine)
     BDdf.drop('id', axis= 1 , inplace= True )
@@ -135,6 +139,9 @@ def price_create(request, id=None):
 # убираем лишние колонки и дубликаты по номеру и бренду
     fin.drop(['name_field_y','volume_field_y','weight_field_y'], axis= 1 , inplace= True )
     fin.drop_duplicates(['oem_field','brend_field'], inplace=True)
+
+    fin['name_field_x'] = fin['name_field_x'].replace(r'\s+|\\n', ' ', regex=True)
+
 
     # fin.rename(columns = {
     #     'oem_field':'номер', 
