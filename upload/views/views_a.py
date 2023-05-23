@@ -1,6 +1,7 @@
 from django.shortcuts import render
 import pandas as pd
 import numpy as np
+import re
 import pickle
 import os.path, shutil
 import cgi
@@ -136,6 +137,7 @@ def price_create(request, id=None):
     fin = PriseDf.merge(pricefulldf, left_on=['brend_field', 'oem_field'], right_on=['brend_field', 'oem_field'])
     fin['price_field'] = fin['price_field']*cur
     fin['price_field'] = fin['price_field'].round(2)
+
 # убираем лишние колонки и дубликаты по номеру и бренду
     fin.drop(['name_field_y','volume_field_y','weight_field_y'], axis= 1 , inplace= True )
     fin.drop_duplicates(['oem_field','brend_field'], inplace=True)
@@ -177,9 +179,9 @@ def price_create(request, id=None):
     # print(fin)
 
     try:
-        fin.to_csv(price_url, index = False, encoding='cp1251')
+        fin.to_csv(price_url, index = False, encoding='cp1251', sep=';')
     except:
-        fin.to_csv(price_url, index = False)
+        fin.to_csv(price_url, index = False, encoding='utf-8', sep=';')
 
     len = fin.shape[0]
     context = {
@@ -284,8 +286,17 @@ def bd_create(request):
         Bd = pq.read_table('mediafiles/parquet/data.parquet')
         Bddf = Bd.to_pandas()
 
-        Bddf["name_field"] = Bddf["name_field"].str.upper()
-        Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
+        # Bddf["name_field"] = Bddf["name_field"].str.upper()
+
+        p = r'\b(?:{})\b'.format('|'.join(map(re.escape, words_up)))
+        # Stopr = ta[ta["name_field"].str.contains(p, case=False)]
+        # print(Stopr)
+        # Stopr.to_csv('mediafiles/csv/Stopr.csv', index = False)
+        # Чистим по стоп словам
+        Bddf_w = Bddf[~Bddf["name_field"].str.contains(p, case=False)]
+
+
+        # Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
         Oldbd_newprice_arr = [result,Bddf_w]
     except:
         Oldbd_newprice_arr = [result]
