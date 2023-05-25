@@ -112,7 +112,9 @@ def price_create(request, id=None):
     if Curency != 'рубль':
         pricefulldf = pricefulldf[pricefulldf['quantity_field']==1]
     else:
-        pricefulldf = pricefulldf[pricefulldf['quantity_field']!=0]
+        pricefulldf = pricefulldf[pricefulldf['quantity_field'] > 0]
+
+    pricefulldf.to_csv('mediafiles/csv/pricefulldf.csv', index = False)
 
     # print('pricefulldf',pricefulldf)
 
@@ -125,6 +127,9 @@ def price_create(request, id=None):
 
     if (pricefulldf['price_field'].dtype == object):
         pricefulldf['price_field'] = pricefulldf['price_field'].str.replace(',', '.').astype('float64')
+
+    # Убираем цену 0
+    pricefulldf = pricefulldf[pricefulldf['price_field'] > 0]    
 
 # получаем готовый прайс из базы данных 
     if Curency != 'рубль':
@@ -142,6 +147,7 @@ def price_create(request, id=None):
     fin.drop(['name_field_y','volume_field_y','weight_field_y'], axis= 1 , inplace= True )
     fin.drop_duplicates(['oem_field','brend_field'], inplace=True)
 
+    #убираем концевые переводы строки LF
     fin['name_field_x'] = fin['name_field_x'].replace(r'\s+|\\n', ' ', regex=True)
 
 
@@ -240,7 +246,7 @@ class BD_update(generic.UpdateView):
     
 
 
-def words_delete(request, id=None):   
+def words_delete(request, id=None):    
     words = StopWords.objects.get(pk=id)
     words.delete()
     return JsonResponse({'success': True, 'message': 'Delete','id':id})  
@@ -259,7 +265,18 @@ def bd_create(request):
 
     prices=AddFiles.objects.values_list('files', flat=True).distinct()
     words = StopWords.objects.values_list('words', flat=True).distinct()
-    words_up=list(map(str.upper, words))
+
+    word_list=list(words)
+
+    word_listt = [value for value in word_list if value]
+
+    # print('words',word_listt)
+
+    words_up=list(map(str.upper, word_listt))
+
+
+
+
     DataFrames = []
     
     for price in prices:
@@ -300,6 +317,7 @@ def bd_create(request):
         Oldbd_newprice_arr = [result,Bddf_w]
     except:
         Oldbd_newprice_arr = [result]
+    
     
 
     # Обновляем бд!

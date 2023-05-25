@@ -264,8 +264,12 @@ class PriceDf:
     def get_clean(self,file):
             
         words = StopWords.objects.values_list('words', flat=True).distinct()
-        wordsdefalt = list(words) 
-        words_up=list(map(str.upper, words))
+
+        #убираем случайные пусты строки из стоп слов
+        word_list=list(words)
+        word_listt = [value for value in word_list if value]
+        words_up=list(map(str.upper, word_listt))
+
         brands = Brands.objects.values_list('brand', flat=True).distinct()
         brands_up = list(map(str.upper, brands))
  
@@ -326,6 +330,8 @@ class PriceDf:
             # Stopr.to_csv('mediafiles/csv/Stopr.csv', index = False, sep=";",encoding='cp1251')
             # Чистим по стоп словам
             new = ta[~ta["name_field"].str.contains(p, case=False)]
+
+            new = new[~new["oem_field"].str.contains(p, case=False)]
 
             new['brend_field'] = new['brend_field'].str.upper()
             #изза этого крашится при заполнении новой дб, Exception Value:Length of values (998) does not match length of index (101706
