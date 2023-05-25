@@ -267,15 +267,8 @@ def bd_create(request):
     words = StopWords.objects.values_list('words', flat=True).distinct()
 
     word_list=list(words)
-
     word_listt = [value for value in word_list if value]
-
-    # print('words',word_listt)
-
     words_up=list(map(str.upper, word_listt))
-
-
-
 
     DataFrames = []
     
@@ -312,13 +305,15 @@ def bd_create(request):
         # Чистим по стоп словам
         Bddf_w = Bddf[~Bddf["name_field"].str.contains(p, case=False)]
 
+        Bddf_n = Bddf_w[~Bddf_w["oem_field"].str.contains(p, case=False)]
+
 
         # Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
-        Oldbd_newprice_arr = [result,Bddf_w]
+        Oldbd_newprice_arr = [result,Bddf_n]
     except:
         Oldbd_newprice_arr = [result]
     
-    
+
 
     # Обновляем бд!
     BdupdateDF = concatenate(Oldbd_newprice_arr)
