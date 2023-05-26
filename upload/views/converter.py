@@ -321,17 +321,19 @@ class PriceDf:
                 ta = ts.loc[ts["brend_field"].str.upper().isin(brands_up)].compute()
 
 
-            # ta["name_field"] = ta["name_field"].str.upper()
-
+            # print('words_up',words_up)
 
             p = r'\b(?:{})\b'.format('|'.join(map(re.escape, words_up)))
             # Stopr = ta[ta["name_field"].str.contains(p, case=False)]
-            # print(Stopr)
             # Stopr.to_csv('mediafiles/csv/Stopr.csv', index = False, sep=";",encoding='cp1251')
+            
             # Чистим по стоп словам
-            new = ta[~ta["name_field"].str.contains(p, case=False)]
+            if len(words_up) != 0:
+                new = ta[~ta["name_field"].str.contains(p, case=False)]
+                new = new[~new["oem_field"].str.contains(p, case=False)]
+            else:
+                new = ta
 
-            new = new[~new["oem_field"].str.contains(p, case=False)]
 
             new['brend_field'] = new['brend_field'].str.upper()
             #изза этого крашится при заполнении новой дб, Exception Value:Length of values (998) does not match length of index (101706
@@ -340,7 +342,7 @@ class PriceDf:
             e_time_dask = time.time()
 
         
-        # print(new)
+        # print('new',new)
         print("читаем файл ",key, (e_time_dask-s_time_dask), "seconds")
         return new
 

@@ -112,9 +112,12 @@ def price_create(request, id=None):
     if Curency != 'рубль':
         pricefulldf = pricefulldf[pricefulldf['quantity_field']==1]
     else:
-        pricefulldf = pricefulldf[pricefulldf['quantity_field'] > 0]
+        try:
+            pricefulldf = pricefulldf[pricefulldf['quantity_field'] > 0]
+        except:
+            pass
 
-    pricefulldf.to_csv('mediafiles/csv/pricefulldf.csv', index = False)
+    # pricefulldf.to_csv('mediafiles/csv/pricefulldf.csv', index = False)
 
     # print('pricefulldf',pricefulldf)
 
@@ -282,6 +285,7 @@ def bd_create(request):
         DataFrames.append(pricedf)
 
 
+
     result = concatenate(DataFrames)
     # result.to_csv('result.csv', index = False)
     # Получаем датафрейм для текущей бд
@@ -292,33 +296,42 @@ def bd_create(request):
     # Bdcsv = raw_data.compute()
     s_time_dask = time.time()
     # Соединяем нашу бд с новыми загруженными прайсами
-    try:
-        Bd = pq.read_table('mediafiles/parquet/data.parquet')
-        Bddf = Bd.to_pandas()
 
-        # Bddf["name_field"] = Bddf["name_field"].str.upper()
+    Bd = pq.read_table('mediafiles/parquet/data.parquet')
+    Bddf = Bd.to_pandas()
 
-        p = r'\b(?:{})\b'.format('|'.join(map(re.escape, words_up)))
-        # Stopr = ta[ta["name_field"].str.contains(p, case=False)]
-        # print(Stopr)
-        # Stopr.to_csv('mediafiles/csv/Stopr.csv', index = False)
-        # Чистим по стоп словам
+
+    # print('Bddf',Bddf)
+
+    # Bddf["name_field"] = Bddf["name_field"].str.upper()
+
+    p = r'\b(?:{})\b'.format('|'.join(map(re.escape, words_up)))
+    # Stopr = ta[ta["name_field"].str.contains(p, case=False)]
+    # print(Stopr)
+    # Stopr.to_csv('mediafiles/csv/Stopr.csv', index = False)
+    # Чистим по стоп словам
+
+    if len(words_up) != 0:
         Bddf_w = Bddf[~Bddf["name_field"].str.contains(p, case=False)]
-
         Bddf_n = Bddf_w[~Bddf_w["oem_field"].str.contains(p, case=False)]
+    else:
+        Bddf_n = Bddf
 
 
-        # Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
-        Oldbd_newprice_arr = [result,Bddf_n]
-    except:
-        Oldbd_newprice_arr = [result]
-    
 
+    # Bddf_w = Bddf[~Bddf["name_field"].str.contains('|'.join(words_up))]
+    Oldbd_newprice_arr = [result,Bddf_n]
+
+    # print('Oldbd_newprice_arr',Oldbd_newprice_arr)
 
     # Обновляем бд!
     BdupdateDF = concatenate(Oldbd_newprice_arr)
 
+
+
+
     FULL = Dfilter(BdupdateDF)
+
 
 
 
