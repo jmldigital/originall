@@ -271,7 +271,9 @@ class PriceDf:
         words_up=list(map(str.upper, word_listt))
 
         brands = Brands.objects.values_list('brand', flat=True).distinct()
-        brands_up = list(map(str.upper, brands))
+        brands_listt = [value for value in brands if value]
+        brands_up = list(map(str.upper, brands_listt))
+
  
         # key = file.split('/')[-1]
         key = os.path.basename(file)
